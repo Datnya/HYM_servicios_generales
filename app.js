@@ -1,6 +1,7 @@
 const TEMPLATE_URL = "assets/cotizacion-hym.pdf";
 const HISTORY_KEY = "hym_quote_history";
 const MAX_ITEMS_IN_TEMPLATE = 8;
+const MAX_ITEM_IMAGE_SIZE = 700;
 
 const state = {
   currentPdfUrl: "",
@@ -91,12 +92,13 @@ function writeHistory(history) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
 }
 
-function createItem(description = "", quantity = "", unitValue = "") {
+function createItem(description = "", quantity = "", unitValue = "", imageDataUrl = "") {
   state.items.push({
     id: crypto.randomUUID(),
     description,
     quantity,
-    unitValue
+    unitValue,
+    imageDataUrl
   });
   renderItems();
 }
@@ -132,6 +134,9 @@ function validateForm() {
 function renderItems() {
   itemsList.innerHTML = "";
   state.items.forEach((item, index) => {
+    const imagePreview = item.imageDataUrl
+      ? `<img class="item-image-preview" src="${item.imageDataUrl}" alt="Imagen del ítem ${index + 1}">`
+      : `<span class="item-image-empty">Sin imagen</span>`;
     const wrapper = document.createElement("article");
     wrapper.className = "quote-item";
     wrapper.dataset.id = item.id;
@@ -154,6 +159,11 @@ function renderItems() {
           <input data-field="unitValue" type="number" min="0" step="0.01" value="${escapeHtml(item.unitValue)}" required>
         </label>
       </div>
+      <label>
+        <span>Imagen del producto o servicio (opcional)</span>
+        <input data-image-input type="file" accept="image/*">
+      </label>
+      <div class="item-image-box">${imagePreview}</div>
       <div class="line-total">Valor total: <span data-line-total>${formatCurrency(lineTotal(item))}</span></div>
     `;
     itemsList.appendChild(wrapper);
@@ -171,7 +181,8 @@ function collectQuote() {
       description: item.description.trim(),
       quantity: Number(item.quantity),
       unitValue: Number(item.unitValue),
-      total: lineTotal(item)
+      total: lineTotal(item),
+      imageDataUrl: item.imageDataUrl || ""
     })),
     total: grandTotalValue()
   };
@@ -222,6 +233,53 @@ function drawRight(page, text, x, y, width, size, font) {
   drawText(page, value, { x: x + width - textWidth, y, size, font });
 }
 
+function resizeImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const ratio = Math.min(1, MAX_ITEM_IMAGE_SIZE / image.width, MAX_ITEM_IMAGE_SIZE / image.height);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * ratio));
+        canvas.height = Math.max(1, Math.round(image.height * ratio));
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      image.onerror = reject;
+      image.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function dataUrlToBytes(dataUrl) {
+  const [meta, data] = dataUrl.split(",");
+  const mime = meta.match(/data:(.*?);base64/)?.[1] || "";
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return { bytes, mime };
+}
+
+async function embedItemImage(pdfDoc, dataUrl) {
+  const { bytes, mime } = dataUrlToBytes(dataUrl);
+  if (mime === "image/png") return pdfDoc.embedPng(bytes);
+  return pdfDoc.embedJpg(bytes);
+}
+
+function fitInside(width, height, maxWidth, maxHeight) {
+  const ratio = Math.min(maxWidth / width, maxHeight / height);
+  return {
+    width: width * ratio,
+    height: height * ratio
+  };
+}
+
 async function generatePdf(quote) {
   const templateBytes = await fetch(TEMPLATE_URL).then((response) => response.arrayBuffer());
   const pdfDoc = await PDFLib.PDFDocument.load(templateBytes);
@@ -231,21 +289,35 @@ async function generatePdf(quote) {
 
   drawText(page, formatDisplayDate(quote.date), {
     x: 60,
-    y: 668,
+    y: 664,
     size: 11,
     font: regularFont
   });
   drawText(page, quote.clientName, {
     x: 80,
-    y: 624,
+    y: 620,
     size: 12,
     font: boldFont
   });
 
   let rowY = 430;
-  quote.items.slice(0, MAX_ITEMS_IN_TEMPLATE).forEach((item, index) => {
+  for (const [index, item] of quote.items.slice(0, MAX_ITEMS_IN_TEMPLATE).entries()) {
     const descriptionLines = wrapText(item.description, regularFont, 9, 190).slice(0, 3);
     drawText(page, String(index + 1), { x: 46, y: rowY, size: 10, font: boldFont });
+    if (item.imageDataUrl) {
+      try {
+        const image = await embedItemImage(pdfDoc, item.imageDataUrl);
+        const size = fitInside(image.width, image.height, 70, 44);
+        page.drawImage(image, {
+          x: 115 - size.width / 2,
+          y: rowY - 6 - size.height / 2,
+          width: size.width,
+          height: size.height
+        });
+      } catch {
+        drawText(page, "Imagen no disponible", { x: 76, y: rowY, size: 7, font: regularFont });
+      }
+    }
     descriptionLines.forEach((line, lineIndex) => {
       drawText(page, line, {
         x: 164,
@@ -258,7 +330,7 @@ async function generatePdf(quote) {
     drawRight(page, toMoney(item.unitValue), 420, rowY, 56, 10, regularFont);
     drawRight(page, toMoney(item.total), 493, rowY, 65, 10, boldFont);
     rowY -= 24;
-  });
+  }
 
   drawRight(page, toMoney(quote.total), 493, 233, 65, 13, boldFont);
   return pdfDoc.save();
@@ -320,6 +392,8 @@ async function openHistoryQuote(id) {
 
 function downloadCurrentPdf() {
   if (!state.currentPdfUrl || !state.currentQuote) return;
+  saveQuoteToHistory(state.currentQuote);
+  renderHistory();
   const link = document.createElement("a");
   link.href = state.currentPdfUrl;
   link.download = quoteFileName(state.currentQuote);
@@ -340,6 +414,8 @@ async function shareCurrentPdf() {
       text: `Cotización para ${state.currentQuote.clientName}`,
       files: [file]
     });
+    saveQuoteToHistory(state.currentQuote);
+    renderHistory();
     return;
   }
 
@@ -377,6 +453,7 @@ document.getElementById("addItemButton").addEventListener("click", () => {
 });
 
 itemsList.addEventListener("input", (event) => {
+  if (event.target.matches("[data-image-input]")) return;
   const wrapper = event.target.closest(".quote-item");
   if (!wrapper) return;
   const item = state.items.find((entry) => entry.id === wrapper.dataset.id);
@@ -384,6 +461,18 @@ itemsList.addEventListener("input", (event) => {
   item[event.target.dataset.field] = event.target.value;
   wrapper.querySelector("[data-line-total]").textContent = formatCurrency(lineTotal(item));
   validateForm();
+});
+
+itemsList.addEventListener("change", async (event) => {
+  if (!event.target.matches("[data-image-input]")) return;
+  const wrapper = event.target.closest(".quote-item");
+  if (!wrapper) return;
+  const item = state.items.find((entry) => entry.id === wrapper.dataset.id);
+  const file = event.target.files?.[0];
+  if (!item || !file) return;
+
+  item.imageDataUrl = await resizeImageFile(file);
+  wrapper.querySelector(".item-image-box").innerHTML = `<img class="item-image-preview" src="${item.imageDataUrl}" alt="Imagen del ítem">`;
 });
 
 itemsList.addEventListener("click", (event) => {
@@ -407,9 +496,7 @@ form.addEventListener("submit", async (event) => {
   try {
     const quote = collectQuote();
     const bytes = await generatePdf(quote);
-    saveQuoteToHistory(quote);
     setPdfPreview(bytes, quote);
-    renderHistory();
     showView("preview");
   } finally {
     continueButton.textContent = "Continuar";
