@@ -3,6 +3,7 @@ const path = require("path");
 
 const root = process.cwd();
 const dist = path.join(root, "dist");
+const client = path.join(dist, "client");
 
 const files = [
   "index.html",
@@ -17,10 +18,11 @@ const files = [
 
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(path.join(dist, "server"), { recursive: true });
+fs.mkdirSync(client, { recursive: true });
 
 for (const file of files) {
   const source = path.join(root, file);
-  const target = path.join(dist, file);
+  const target = path.join(client, file);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(source, target);
 }
