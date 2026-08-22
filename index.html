@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#fedd58">
+    <title>HYM Cotizaciones</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="styles.css">
+    <script src="vendor/pdf-lib.min.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="view active" id="homeView" aria-labelledby="homeTitle">
+        <div class="brand">
+          <img src="assets/logo-hym.png" alt="HYM Servicios Generales" class="brand-logo">
+          <h1 id="homeTitle">HYM Cotizaciones</h1>
+        </div>
+        <div class="home-actions">
+          <button class="primary-action" id="newQuoteButton" type="button">Generar una nueva cotización</button>
+          <button class="secondary-action" id="historyButton" type="button">Ver historial de cotizaciones</button>
+        </div>
+      </section>
+
+      <section class="view" id="formView" aria-labelledby="formTitle">
+        <header class="topbar">
+          <button class="icon-button" data-action="home" type="button" aria-label="Volver">‹</button>
+          <h2 id="formTitle">Nueva cotización</h2>
+        </header>
+
+        <form id="quoteForm" autocomplete="off">
+          <label>
+            <span>Fecha</span>
+            <input id="quoteDate" name="quoteDate" type="date" required>
+          </label>
+
+          <label>
+            <span>Nombre completo del cliente</span>
+            <input id="clientName" name="clientName" type="text" required>
+          </label>
+
+          <div class="items-heading">
+            <h3>Servicios o productos</h3>
+            <button class="small-button" id="addItemButton" type="button">Agregar</button>
+          </div>
+
+          <div id="itemsList" class="items-list"></div>
+
+          <div class="total-panel">
+            <span>Costo total</span>
+            <strong id="grandTotal">S/ 0.00</strong>
+          </div>
+
+          <button class="primary-action" id="continueButton" type="submit" disabled>Continuar</button>
+        </form>
+      </section>
+
+      <section class="view" id="previewView" aria-labelledby="previewTitle">
+        <header class="topbar preview-topbar">
+          <button class="icon-button" data-action="form" type="button" aria-label="Editar">‹</button>
+          <h2 id="previewTitle">Previsualización</h2>
+          <div class="preview-actions">
+            <button class="small-button" id="downloadButton" type="button">Descargar PDF</button>
+            <button class="small-button" id="shareButton" type="button">Compartir</button>
+          </div>
+        </header>
+        <iframe id="pdfPreview" title="Previsualización de cotización"></iframe>
+      </section>
+
+      <section class="view" id="historyView" aria-labelledby="historyTitle">
+        <header class="topbar">
+          <button class="icon-button" data-action="home" type="button" aria-label="Volver">‹</button>
+          <h2 id="historyTitle">Historial</h2>
+        </header>
+        <div id="historyList" class="history-list"></div>
+      </section>
+    </main>
+  </body>
+</html>
