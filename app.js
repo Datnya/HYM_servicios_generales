@@ -256,6 +256,15 @@ function wrapText(text, font, size, maxWidth) {
   return lines;
 }
 
+function wrapTextPreservingBreaks(text, font, size, maxWidth) {
+  return String(text)
+    .split(/\r?\n/)
+    .flatMap((paragraph) => {
+      const trimmed = paragraph.trim();
+      return trimmed ? wrapText(trimmed, font, size, maxWidth) : [""];
+    });
+}
+
 function drawText(page, text, options) {
   page.drawText(String(text), {
     x: options.x,
@@ -381,6 +390,15 @@ function wrapCanvasText(context, text, size, maxWidth) {
   return lines;
 }
 
+function wrapCanvasTextPreservingBreaks(context, text, size, maxWidth) {
+  return String(text)
+    .split(/\r?\n/)
+    .flatMap((paragraph) => {
+      const trimmed = paragraph.trim();
+      return trimmed ? wrapCanvasText(context, trimmed, size, maxWidth) : [""];
+    });
+}
+
 async function renderQuotePreview(quote) {
   const template = await loadImage(PREVIEW_TEMPLATE_URL);
   const context = pdfPreviewCanvas.getContext("2d");
@@ -389,8 +407,8 @@ async function renderQuotePreview(quote) {
   context.clearRect(0, 0, pdfPreviewCanvas.width, pdfPreviewCanvas.height);
   context.drawImage(template, 0, 0);
 
-  drawPreviewText(context, formatDisplayDate(quote.date), 60, 668, 11);
-  drawPreviewText(context, quote.clientName, 80, 624, 12, true);
+  drawPreviewText(context, formatDisplayDate(quote.date), 60, 665, 11);
+  drawPreviewText(context, quote.clientName, 80, 621, 12, true);
 
   let rowY = 430;
   for (const [index, item] of quote.items.slice(0, MAX_ITEMS_IN_TEMPLATE).entries()) {
@@ -428,8 +446,8 @@ async function renderQuotePreview(quote) {
   drawPreviewCenter(context, toMoney(quote.total), 493, 233, 65, 13, true);
 
   if (quote.commercialConditions) {
-    wrapCanvasText(context, quote.commercialConditions, 9, 500).slice(0, 8).forEach((line, lineIndex) => {
-      drawPreviewText(context, line, 38, 156 - lineIndex * 12, 9);
+    wrapCanvasTextPreservingBreaks(context, quote.commercialConditions, 9, 500).slice(0, 8).forEach((line, lineIndex) => {
+      if (line) drawPreviewText(context, line, 38, 156 - lineIndex * 12, 9);
     });
   }
 }
@@ -443,13 +461,13 @@ async function generatePdf(quote) {
 
   drawText(page, formatDisplayDate(quote.date), {
     x: 60,
-    y: 668,
+    y: 665,
     size: 11,
     font: regularFont
   });
   drawText(page, quote.clientName, {
     x: 80,
-    y: 624,
+    y: 621,
     size: 12,
     font: boldFont
   });
@@ -489,7 +507,8 @@ async function generatePdf(quote) {
   drawCenter(page, toMoney(quote.total), 493, 233, 65, 13, boldFont);
 
   if (quote.commercialConditions) {
-    wrapText(quote.commercialConditions, regularFont, 9, 500).slice(0, 8).forEach((line, lineIndex) => {
+    wrapTextPreservingBreaks(quote.commercialConditions, regularFont, 9, 500).slice(0, 8).forEach((line, lineIndex) => {
+      if (!line) return;
       drawText(page, line, {
         x: 38,
         y: 156 - lineIndex * 12,
@@ -542,10 +561,18 @@ function renderHistory() {
         <span>${formatCurrency(quote.total)}</span>
       </div>
       <div>${formatDisplayDate(quote.date)}</div>
-      <button class="small-button" type="button" data-open-history="${quote.id}">Ver PDF</button>
+      <div class="history-actions">
+        <button class="small-button" type="button" data-open-history="${quote.id}">Ver PDF</button>
+        <button class="small-button" type="button" data-delete-history="${quote.id}">Borrar</button>
+      </div>
     `;
     historyList.appendChild(item);
   });
+}
+
+function deleteQuoteFromHistory(id) {
+  writeHistory(readHistory().filter((quote) => quote.id !== id));
+  renderHistory();
 }
 
 async function openHistoryQuote(id) {
@@ -726,10 +753,18 @@ function renderTicketHistory() {
         <span>${formatCurrency(ticket.paidAmount)}</span>
       </div>
       <div>${formatDisplayDate(ticket.date)} - ${ticketTypeLabel(ticket)}</div>
-      <button class="small-button" type="button" data-open-ticket="${ticket.id}">Ver ticket</button>
+      <div class="history-actions">
+        <button class="small-button" type="button" data-open-ticket="${ticket.id}">Ver ticket</button>
+        <button class="small-button" type="button" data-delete-ticket="${ticket.id}">Borrar</button>
+      </div>
     `;
     ticketHistoryList.appendChild(item);
   });
+}
+
+function deleteTicketFromHistory(id) {
+  writeTicketHistory(readTicketHistory().filter((ticket) => ticket.id !== id));
+  renderTicketHistory();
 }
 
 async function openTicketFromHistory(id) {
@@ -919,8 +954,14 @@ document.getElementById("shareTicketButton").addEventListener("click", () => {
 });
 
 ticketHistoryList.addEventListener("click", (event) => {
-  const id = event.target.dataset.openTicket;
-  if (id) openTicketFromHistory(id);
+  const openId = event.target.dataset.openTicket;
+  if (openId) {
+    openTicketFromHistory(openId);
+    return;
+  }
+
+  const deleteId = event.target.dataset.deleteTicket;
+  if (deleteId) deleteTicketFromHistory(deleteId);
 });
 
 form.addEventListener("submit", async (event) => {
@@ -947,8 +988,14 @@ shareButton.addEventListener("click", () => {
 });
 
 historyList.addEventListener("click", (event) => {
-  const id = event.target.dataset.openHistory;
-  if (id) openHistoryQuote(id);
+  const openId = event.target.dataset.openHistory;
+  if (openId) {
+    openHistoryQuote(openId);
+    return;
+  }
+
+  const deleteId = event.target.dataset.deleteHistory;
+  if (deleteId) deleteQuoteFromHistory(deleteId);
 });
 
 if ("serviceWorker" in navigator) {

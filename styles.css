@@ -178,6 +178,16 @@ textarea {
   font-size: 14px;
 }
 
+.history-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.history-actions .small-button {
+  width: 100%;
+}
+
 .quote-item,
 .history-item {
   display: grid;

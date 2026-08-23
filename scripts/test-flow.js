@@ -65,7 +65,7 @@ async function main() {
       };
       setValue("#quoteDate", "2026-08-22");
       setValue("#clientName", "Cliente de Prueba");
-      setValue("#commercialConditions", "Precio no incluye IGV. Garantia de 1 año. Entrega de 7 a 11 dias.");
+      setValue("#commercialConditions", "Precio no incluye IGV.\nGarantia de 1 año. Entrega de 7 a 11 dias.");
       setValue("[data-field=description]", "Instalacion de camaras de seguridad");
       setValue("[data-field=quantity]", "2");
       setValue("[data-field=unitValue]", "150");
@@ -107,6 +107,8 @@ async function main() {
       downloadCurrentPdf();
       const historyAfterDownload = JSON.parse(localStorage.getItem("hym_quote_history") || "[]");
       renderHistory();
+      document.querySelector("[data-delete-history]").click();
+      const historyAfterDelete = JSON.parse(localStorage.getItem("hym_quote_history") || "[]");
       document.querySelector("[data-action=home]").click();
       await new Promise((resolve) => setTimeout(resolve, 100));
       document.querySelector("#newTicketButton").click();
@@ -135,6 +137,8 @@ async function main() {
       downloadCurrentTicket();
       const ticketHistoryAfterDownload = JSON.parse(localStorage.getItem("hym_ticket_history") || "[]");
       renderTicketHistory();
+      document.querySelector("[data-delete-ticket]").click();
+      const ticketHistoryAfterDelete = JSON.parse(localStorage.getItem("hym_ticket_history") || "[]");
       let binary = "";
       for (let i = 0; i < state.currentPdfBytes.length; i += 32768) {
         binary += String.fromCharCode(...state.currentPdfBytes.slice(i, i + 32768));
@@ -146,6 +150,7 @@ async function main() {
         historyBeforeActions,
         historyAfterShare: historyAfterShare.length,
         historyAfterDownload: historyAfterDownload.length,
+        historyAfterDelete: historyAfterDelete.length,
         historyViewItems: document.querySelectorAll(".history-item").length,
         sharedFileName: window.__sharedFileName,
         savedImageInHistory: historyAfterDownload[0]?.items?.[0]?.imageDataUrl?.startsWith("data:image/") || false,
@@ -155,6 +160,7 @@ async function main() {
         ticketHistoryBeforeActions,
         ticketHistoryAfterShare: ticketHistoryAfterShare.length,
         ticketHistoryAfterDownload: ticketHistoryAfterDownload.length,
+        ticketHistoryAfterDelete: ticketHistoryAfterDelete.length,
         ticketHistoryViewItems: document.querySelectorAll("#ticketHistoryList .history-item").length,
         ticketPendingText: document.querySelector("#ticketPendingAmount").textContent,
         sharedTicketFileName: window.__sharedFileName,
