@@ -516,7 +516,7 @@ historyList.addEventListener("click", (event) => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    navigator.serviceWorker.register("/sw-v5.js", { scope: "/" });
   });
 }
 

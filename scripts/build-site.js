@@ -11,6 +11,7 @@ const files = [
   "app.js",
   "manifest.webmanifest",
   "sw.js",
+  "sw-v5.js",
   "assets/cotizacion-hym.pdf",
   "assets/logo-hym.png",
   "vendor/pdf-lib.min.js"
