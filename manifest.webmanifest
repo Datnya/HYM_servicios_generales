@@ -1,7 +1,9 @@
 {
   "name": "HYM Cotizaciones",
   "short_name": "HYM",
-  "start_url": "./index.html",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#fedd58",
