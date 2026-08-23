@@ -228,11 +228,18 @@ textarea {
   gap: 10px;
 }
 
-#pdfPreview {
+.pdf-preview-scroll {
   width: 100%;
   min-height: calc(100vh - 132px);
   border: 2px solid var(--black);
   background: var(--white);
+  overflow: auto;
+}
+
+#pdfPreviewCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .empty-state {

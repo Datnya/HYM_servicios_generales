@@ -65,7 +65,9 @@
             <button class="small-button" id="shareButton" type="button">Compartir</button>
           </div>
         </header>
-        <iframe id="pdfPreview" title="Previsualización de cotización"></iframe>
+        <div class="pdf-preview-scroll" aria-label="Previsualización de cotización">
+          <canvas id="pdfPreviewCanvas"></canvas>
+        </div>
       </section>
 
       <section class="view" id="historyView" aria-labelledby="historyTitle">

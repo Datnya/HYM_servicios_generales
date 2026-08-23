@@ -1,7 +1,10 @@
 const TEMPLATE_URL = "assets/cotizacion-hym.pdf";
+const PREVIEW_TEMPLATE_URL = "assets/cotizacion-preview.png";
 const HISTORY_KEY = "hym_quote_history";
 const MAX_ITEMS_IN_TEMPLATE = 8;
 const MAX_ITEM_IMAGE_SIZE = 700;
+const PDF_PAGE_WIDTH = 595.5;
+const PDF_PAGE_HEIGHT = 842.25;
 
 const state = {
   currentPdfUrl: "",
@@ -23,7 +26,7 @@ const clientName = document.getElementById("clientName");
 const itemsList = document.getElementById("itemsList");
 const grandTotal = document.getElementById("grandTotal");
 const continueButton = document.getElementById("continueButton");
-const pdfPreview = document.getElementById("pdfPreview");
+const pdfPreviewCanvas = document.getElementById("pdfPreviewCanvas");
 const historyList = document.getElementById("historyList");
 const shareButton = document.getElementById("shareButton");
 
@@ -280,6 +283,101 @@ function fitInside(width, height, maxWidth, maxHeight) {
   };
 }
 
+function loadImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = source;
+  });
+}
+
+function drawPreviewText(context, text, x, y, size, bold = false) {
+  const scaleX = pdfPreviewCanvas.width / PDF_PAGE_WIDTH;
+  const scaleY = pdfPreviewCanvas.height / PDF_PAGE_HEIGHT;
+  context.font = `${bold ? "700 " : ""}${size * scaleY}px Arial`;
+  context.fillStyle = "#000000";
+  context.textBaseline = "alphabetic";
+  context.fillText(String(text), x * scaleX, (PDF_PAGE_HEIGHT - y) * scaleY);
+}
+
+function drawPreviewRight(context, text, x, y, width, size, bold = false) {
+  const scaleX = pdfPreviewCanvas.width / PDF_PAGE_WIDTH;
+  const value = String(text);
+  context.font = `${bold ? "700 " : ""}${size * (pdfPreviewCanvas.height / PDF_PAGE_HEIGHT)}px Arial`;
+  const textWidth = context.measureText(value).width;
+  drawPreviewText(context, value, x + width - textWidth / scaleX, y, size, bold);
+}
+
+function wrapCanvasText(context, text, size, maxWidth) {
+  const scaleX = pdfPreviewCanvas.width / PDF_PAGE_WIDTH;
+  const scaleY = pdfPreviewCanvas.height / PDF_PAGE_HEIGHT;
+  context.font = `${size * scaleY}px Arial`;
+  const words = text.replace(/\s+/g, " ").trim().split(" ");
+  const lines = [];
+  let line = "";
+
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (context.measureText(testLine).width <= maxWidth * scaleX) {
+      line = testLine;
+      return;
+    }
+    if (line) lines.push(line);
+    line = word;
+  });
+
+  if (line) lines.push(line);
+  return lines;
+}
+
+async function renderQuotePreview(quote) {
+  const template = await loadImage(PREVIEW_TEMPLATE_URL);
+  const context = pdfPreviewCanvas.getContext("2d");
+  pdfPreviewCanvas.width = template.naturalWidth;
+  pdfPreviewCanvas.height = template.naturalHeight;
+  context.clearRect(0, 0, pdfPreviewCanvas.width, pdfPreviewCanvas.height);
+  context.drawImage(template, 0, 0);
+
+  drawPreviewText(context, formatDisplayDate(quote.date), 60, 668, 11);
+  drawPreviewText(context, quote.clientName, 80, 624, 12, true);
+
+  let rowY = 430;
+  for (const [index, item] of quote.items.slice(0, MAX_ITEMS_IN_TEMPLATE).entries()) {
+    drawPreviewText(context, String(index + 1), 46, rowY, 10, true);
+
+    if (item.imageDataUrl) {
+      try {
+        const image = await loadImage(item.imageDataUrl);
+        const size = fitInside(image.naturalWidth, image.naturalHeight, 70, 44);
+        const imageX = 115 - size.width / 2;
+        const imageY = rowY - 6 - size.height / 2;
+        const scaleX = pdfPreviewCanvas.width / PDF_PAGE_WIDTH;
+        const scaleY = pdfPreviewCanvas.height / PDF_PAGE_HEIGHT;
+        context.drawImage(
+          image,
+          imageX * scaleX,
+          (PDF_PAGE_HEIGHT - imageY - size.height) * scaleY,
+          size.width * scaleX,
+          size.height * scaleY
+        );
+      } catch {
+        drawPreviewText(context, "Imagen no disponible", 76, rowY, 7);
+      }
+    }
+
+    wrapCanvasText(context, item.description, 9, 190).slice(0, 3).forEach((line, lineIndex) => {
+      drawPreviewText(context, line, 164, rowY - lineIndex * 11, 9);
+    });
+    drawPreviewRight(context, item.quantity, 360, rowY, 45, 10);
+    drawPreviewRight(context, toMoney(item.unitValue), 420, rowY, 56, 10);
+    drawPreviewRight(context, toMoney(item.total), 493, rowY, 65, 10, true);
+    rowY -= 24;
+  }
+
+  drawPreviewRight(context, toMoney(quote.total), 493, 233, 65, 13, true);
+}
+
 async function generatePdf(quote) {
   const templateBytes = await fetch(TEMPLATE_URL).then((response) => response.arrayBuffer());
   const pdfDoc = await PDFLib.PDFDocument.load(templateBytes);
@@ -289,13 +387,13 @@ async function generatePdf(quote) {
 
   drawText(page, formatDisplayDate(quote.date), {
     x: 60,
-    y: 664,
+    y: 668,
     size: 11,
     font: regularFont
   });
   drawText(page, quote.clientName, {
     x: 80,
-    y: 620,
+    y: 624,
     size: 12,
     font: boldFont
   });
@@ -342,7 +440,7 @@ function setPdfPreview(bytes, quote) {
   state.currentPdfUrl = URL.createObjectURL(blob);
   state.currentPdfBytes = bytes;
   state.currentQuote = quote;
-  pdfPreview.src = state.currentPdfUrl;
+  renderQuotePreview(quote);
 }
 
 function saveQuoteToHistory(quote) {

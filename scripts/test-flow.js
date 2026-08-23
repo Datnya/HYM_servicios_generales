@@ -84,7 +84,7 @@ async function main() {
       for (let i = 0; i < 80; i += 1) {
         const ready =
           document.querySelector("#previewView").classList.contains("active") &&
-          document.querySelector("#pdfPreview").src.startsWith("blob:");
+          document.querySelector("#pdfPreviewCanvas").width > 0;
         if (ready) break;
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
@@ -113,7 +113,7 @@ async function main() {
       return {
         enabledBeforeClick,
         previewActive: document.querySelector("#previewView").classList.contains("active"),
-        hasBlobPreview: document.querySelector("#pdfPreview").src.startsWith("blob:"),
+        hasCanvasPreview: document.querySelector("#pdfPreviewCanvas").width > 0,
         historyBeforeActions,
         historyAfterShare: historyAfterShare.length,
         historyAfterDownload: historyAfterDownload.length,

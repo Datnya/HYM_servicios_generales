@@ -13,6 +13,7 @@ const files = [
   "sw.js",
   "sw-v5.js",
   "assets/cotizacion-hym.pdf",
+  "assets/cotizacion-preview.png",
   "assets/logo-hym.png",
   "vendor/pdf-lib.min.js"
 ];
