@@ -1,15 +1,21 @@
 const TEMPLATE_URL = "assets/cotizacion-hym.pdf";
 const PREVIEW_TEMPLATE_URL = "assets/cotizacion-preview.png";
 const HISTORY_KEY = "hym_quote_history";
+const TICKET_HISTORY_KEY = "hym_ticket_history";
 const MAX_ITEMS_IN_TEMPLATE = 8;
 const MAX_ITEM_IMAGE_SIZE = 700;
 const PDF_PAGE_WIDTH = 595.5;
 const PDF_PAGE_HEIGHT = 842.25;
+const TICKET_WIDTH = 900;
+const TICKET_HEIGHT = 1280;
 
 const state = {
   currentPdfUrl: "",
   currentPdfBytes: null,
   currentQuote: null,
+  currentTicket: null,
+  currentTicketBlob: null,
+  currentTicketUrl: "",
   items: []
 };
 
@@ -17,18 +23,35 @@ const views = {
   home: document.getElementById("homeView"),
   form: document.getElementById("formView"),
   preview: document.getElementById("previewView"),
-  history: document.getElementById("historyView")
+  history: document.getElementById("historyView"),
+  ticketForm: document.getElementById("ticketFormView"),
+  ticketPreview: document.getElementById("ticketPreviewView"),
+  ticketHistory: document.getElementById("ticketHistoryView")
 };
 
 const form = document.getElementById("quoteForm");
 const quoteDate = document.getElementById("quoteDate");
 const clientName = document.getElementById("clientName");
+const commercialConditions = document.getElementById("commercialConditions");
 const itemsList = document.getElementById("itemsList");
 const grandTotal = document.getElementById("grandTotal");
 const continueButton = document.getElementById("continueButton");
 const pdfPreviewCanvas = document.getElementById("pdfPreviewCanvas");
 const historyList = document.getElementById("historyList");
 const shareButton = document.getElementById("shareButton");
+const ticketForm = document.getElementById("ticketForm");
+const ticketDate = document.getElementById("ticketDate");
+const ticketClientName = document.getElementById("ticketClientName");
+const ticketType = document.getElementById("ticketType");
+const ticketServiceDescription = document.getElementById("ticketServiceDescription");
+const ticketDetails = document.getElementById("ticketDetails");
+const ticketTotalAmount = document.getElementById("ticketTotalAmount");
+const ticketTotalAmountLabel = document.getElementById("ticketTotalAmountLabel");
+const ticketPaidAmount = document.getElementById("ticketPaidAmount");
+const ticketPendingAmount = document.getElementById("ticketPendingAmount");
+const ticketContinueButton = document.getElementById("ticketContinueButton");
+const ticketPreviewCanvas = document.getElementById("ticketPreviewCanvas");
+const ticketHistoryList = document.getElementById("ticketHistoryList");
 
 function showView(name) {
   Object.values(views).forEach((view) => view.classList.remove("active"));
@@ -93,6 +116,18 @@ function readHistory() {
 
 function writeHistory(history) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
+}
+
+function readTicketHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(TICKET_HISTORY_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function writeTicketHistory(history) {
+  localStorage.setItem(TICKET_HISTORY_KEY, JSON.stringify(history.slice(0, 80)));
 }
 
 function createItem(description = "", quantity = "", unitValue = "", imageDataUrl = "") {
@@ -180,6 +215,7 @@ function collectQuote() {
     createdAt: new Date().toISOString(),
     date: quoteDate.value,
     clientName: clientName.value.trim(),
+    commercialConditions: commercialConditions.value.trim(),
     items: state.items.map((item) => ({
       description: item.description.trim(),
       quantity: Number(item.quantity),
@@ -234,6 +270,12 @@ function drawRight(page, text, x, y, width, size, font) {
   const value = String(text);
   const textWidth = font.widthOfTextAtSize(value, size);
   drawText(page, value, { x: x + width - textWidth, y, size, font });
+}
+
+function drawCenter(page, text, x, y, width, size, font) {
+  const value = String(text);
+  const textWidth = font.widthOfTextAtSize(value, size);
+  drawText(page, value, { x: x + (width - textWidth) / 2, y, size, font });
 }
 
 function resizeImageFile(file) {
@@ -309,6 +351,14 @@ function drawPreviewRight(context, text, x, y, width, size, bold = false) {
   drawPreviewText(context, value, x + width - textWidth / scaleX, y, size, bold);
 }
 
+function drawPreviewCenter(context, text, x, y, width, size, bold = false) {
+  const scaleX = pdfPreviewCanvas.width / PDF_PAGE_WIDTH;
+  const value = String(text);
+  context.font = `${bold ? "700 " : ""}${size * (pdfPreviewCanvas.height / PDF_PAGE_HEIGHT)}px Arial`;
+  const textWidth = context.measureText(value).width;
+  drawPreviewText(context, value, x + (width - textWidth / scaleX) / 2, y, size, bold);
+}
+
 function wrapCanvasText(context, text, size, maxWidth) {
   const scaleX = pdfPreviewCanvas.width / PDF_PAGE_WIDTH;
   const scaleY = pdfPreviewCanvas.height / PDF_PAGE_HEIGHT;
@@ -375,7 +425,13 @@ async function renderQuotePreview(quote) {
     rowY -= 24;
   }
 
-  drawPreviewRight(context, toMoney(quote.total), 493, 233, 65, 13, true);
+  drawPreviewCenter(context, toMoney(quote.total), 493, 233, 65, 13, true);
+
+  if (quote.commercialConditions) {
+    wrapCanvasText(context, quote.commercialConditions, 9, 500).slice(0, 8).forEach((line, lineIndex) => {
+      drawPreviewText(context, line, 38, 156 - lineIndex * 12, 9);
+    });
+  }
 }
 
 async function generatePdf(quote) {
@@ -430,7 +486,18 @@ async function generatePdf(quote) {
     rowY -= 24;
   }
 
-  drawRight(page, toMoney(quote.total), 493, 233, 65, 13, boldFont);
+  drawCenter(page, toMoney(quote.total), 493, 233, 65, 13, boldFont);
+
+  if (quote.commercialConditions) {
+    wrapText(quote.commercialConditions, regularFont, 9, 500).slice(0, 8).forEach((line, lineIndex) => {
+      drawText(page, line, {
+        x: 38,
+        y: 156 - lineIndex * 12,
+        size: 9,
+        font: regularFont
+      });
+    });
+  }
   return pdfDoc.save();
 }
 
@@ -449,6 +516,7 @@ function saveQuoteToHistory(quote) {
     id: quote.id,
     date: quote.date,
     clientName: quote.clientName,
+    commercialConditions: quote.commercialConditions || "",
     total: quote.total,
     items: quote.items,
     createdAt: quote.createdAt
@@ -488,6 +556,231 @@ async function openHistoryQuote(id) {
   showView("preview");
 }
 
+function ticketFileName(ticket) {
+  const safeClient = ticket.clientName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40)
+    .toLowerCase();
+  return `ticket-hym-${safeClient || "cliente"}-${ticket.date}.jpg`;
+}
+
+function ticketPendingValue() {
+  if (ticketType.value !== "advance") return 0;
+  return Math.max(0, Number(ticketTotalAmount.value || 0) - Number(ticketPaidAmount.value || 0));
+}
+
+function validateTicketForm() {
+  const isAdvance = ticketType.value === "advance";
+  ticketTotalAmountLabel.style.display = isAdvance ? "grid" : "none";
+  ticketPendingAmount.textContent = formatCurrency(ticketPendingValue());
+
+  const complete =
+    ticketDate.value &&
+    ticketClientName.value.trim() &&
+    ticketServiceDescription.value.trim() &&
+    Number(ticketPaidAmount.value) > 0 &&
+    (!isAdvance || Number(ticketTotalAmount.value) >= Number(ticketPaidAmount.value));
+
+  ticketContinueButton.disabled = !complete;
+}
+
+function collectTicket() {
+  const isAdvance = ticketType.value === "advance";
+  const paidAmount = Number(ticketPaidAmount.value || 0);
+  const totalAmount = isAdvance ? Number(ticketTotalAmount.value || 0) : paidAmount;
+  return {
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    date: ticketDate.value,
+    clientName: ticketClientName.value.trim(),
+    type: ticketType.value,
+    serviceDescription: ticketServiceDescription.value.trim(),
+    details: ticketDetails.value.trim(),
+    paidAmount,
+    totalAmount,
+    pendingAmount: isAdvance ? Math.max(0, totalAmount - paidAmount) : 0
+  };
+}
+
+function ticketTypeLabel(ticket) {
+  return ticket.type === "advance" ? "Adelanto" : "Pago total";
+}
+
+function drawTicketWrappedText(context, text, x, y, maxWidth, lineHeight, font) {
+  context.font = font;
+  context.fillStyle = "#000000";
+  const words = String(text || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (context.measureText(testLine).width <= maxWidth) {
+      line = testLine;
+      return;
+    }
+    if (line) lines.push(line);
+    line = word;
+  });
+  if (line) lines.push(line);
+  lines.forEach((entry, index) => context.fillText(entry, x, y + index * lineHeight));
+  return y + Math.max(1, lines.length) * lineHeight;
+}
+
+async function renderTicketPreview(ticket) {
+  const context = ticketPreviewCanvas.getContext("2d");
+  ticketPreviewCanvas.width = TICKET_WIDTH;
+  ticketPreviewCanvas.height = TICKET_HEIGHT;
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, TICKET_WIDTH, TICKET_HEIGHT);
+
+  context.fillStyle = "#fedd58";
+  context.fillRect(0, 0, TICKET_WIDTH, 170);
+  context.fillRect(0, TICKET_HEIGHT - 42, TICKET_WIDTH, 42);
+  context.strokeStyle = "#000000";
+  context.lineWidth = 6;
+  context.strokeRect(24, 24, TICKET_WIDTH - 48, TICKET_HEIGHT - 48);
+
+  try {
+    const logo = await loadImage("assets/logo-hym.png");
+    context.drawImage(logo, 44, 28, 122, 122);
+  } catch {
+    context.strokeRect(44, 28, 122, 122);
+  }
+
+  context.fillStyle = "#000000";
+  context.font = "700 46px Arial";
+  context.fillText("HYM SERVICIOS GENERALES", 190, 78);
+  context.font = "700 34px Arial";
+  context.fillText("TICKET DE PAGO", 190, 126);
+
+  context.textAlign = "center";
+  context.font = "700 42px Arial";
+  context.fillText(ticketTypeLabel(ticket).toUpperCase(), TICKET_WIDTH / 2, 235);
+  context.textAlign = "left";
+
+  const rows = [
+    ["Fecha", formatDisplayDate(ticket.date)],
+    ["Cliente", ticket.clientName],
+    ["Servicio", ticket.serviceDescription],
+    ["Detalles", ticket.details || "-"],
+    ["Monto cobrado", formatCurrency(ticket.paidAmount)],
+    ["Monto total", formatCurrency(ticket.totalAmount)]
+  ];
+  if (ticket.type === "advance") rows.push(["Saldo pendiente", formatCurrency(ticket.pendingAmount)]);
+
+  let y = 310;
+  rows.forEach(([label, value]) => {
+    context.font = "700 28px Arial";
+    context.fillStyle = "#000000";
+    context.fillText(`${label}:`, 70, y);
+    context.font = "28px Arial";
+    y = drawTicketWrappedText(context, value, 310, y, 500, 36, "28px Arial") + 24;
+  });
+
+  context.fillStyle = "#fedd58";
+  context.fillRect(70, y + 15, TICKET_WIDTH - 140, 110);
+  context.strokeStyle = "#000000";
+  context.lineWidth = 4;
+  context.strokeRect(70, y + 15, TICKET_WIDTH - 140, 110);
+  context.textAlign = "center";
+  context.fillStyle = "#000000";
+  context.font = "700 30px Arial";
+  context.fillText(ticket.type === "advance" ? "SALDO PENDIENTE" : "PAGO COMPLETADO", TICKET_WIDTH / 2, y + 58);
+  context.font = "700 42px Arial";
+  context.fillText(ticket.type === "advance" ? formatCurrency(ticket.pendingAmount) : formatCurrency(ticket.paidAmount), TICKET_WIDTH / 2, y + 105);
+  context.textAlign = "left";
+
+  context.font = "24px Arial";
+  context.fillText("Gracias por confiar en HYM Servicios Generales.", 70, TICKET_HEIGHT - 92);
+
+  state.currentTicket = ticket;
+  state.currentTicketBlob = await new Promise((resolve) => {
+    ticketPreviewCanvas.toBlob(resolve, "image/jpeg", 0.92);
+  });
+  if (state.currentTicketUrl) URL.revokeObjectURL(state.currentTicketUrl);
+  state.currentTicketUrl = URL.createObjectURL(state.currentTicketBlob);
+}
+
+function saveTicketToHistory(ticket) {
+  const history = readTicketHistory().filter((entry) => entry.id !== ticket.id);
+  history.unshift(ticket);
+  writeTicketHistory(history);
+}
+
+function renderTicketHistory() {
+  const history = readTicketHistory();
+  ticketHistoryList.innerHTML = "";
+  if (!history.length) {
+    ticketHistoryList.innerHTML = `<div class="empty-state">Aún no hay tickets guardados.</div>`;
+    return;
+  }
+  history.forEach((ticket) => {
+    const item = document.createElement("article");
+    item.className = "history-item";
+    item.innerHTML = `
+      <div class="quote-line">
+        <strong>${escapeHtml(ticket.clientName)}</strong>
+        <span>${formatCurrency(ticket.paidAmount)}</span>
+      </div>
+      <div>${formatDisplayDate(ticket.date)} - ${ticketTypeLabel(ticket)}</div>
+      <button class="small-button" type="button" data-open-ticket="${ticket.id}">Ver ticket</button>
+    `;
+    ticketHistoryList.appendChild(item);
+  });
+}
+
+async function openTicketFromHistory(id) {
+  const ticket = readTicketHistory().find((entry) => entry.id === id);
+  if (!ticket) return;
+  await renderTicketPreview(ticket);
+  showView("ticketPreview");
+}
+
+function downloadCurrentTicket() {
+  if (!state.currentTicket || !state.currentTicketUrl) return;
+  saveTicketToHistory(state.currentTicket);
+  renderTicketHistory();
+  const link = document.createElement("a");
+  link.href = state.currentTicketUrl;
+  link.download = ticketFileName(state.currentTicket);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function shareCurrentTicket() {
+  if (!state.currentTicket || !state.currentTicketBlob) return;
+  const file = new File([state.currentTicketBlob], ticketFileName(state.currentTicket), {
+    type: "image/jpeg"
+  });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      title: "Ticket de pago HYM",
+      text: `Ticket de pago para ${state.currentTicket.clientName}`,
+      files: [file]
+    });
+    saveTicketToHistory(state.currentTicket);
+    renderTicketHistory();
+    return;
+  }
+  downloadCurrentTicket();
+  alert("Tu navegador no permite compartir la imagen directamente. Se descargó el JPG para que puedas enviarlo por WhatsApp.");
+}
+
+function resetTicketForm() {
+  ticketDate.value = todayValue();
+  ticketClientName.value = "";
+  ticketType.value = "advance";
+  ticketServiceDescription.value = "";
+  ticketDetails.value = "";
+  ticketTotalAmount.value = "";
+  ticketPaidAmount.value = "";
+  validateTicketForm();
+}
+
 function downloadCurrentPdf() {
   if (!state.currentPdfUrl || !state.currentQuote) return;
   saveQuoteToHistory(state.currentQuote);
@@ -524,6 +817,7 @@ async function shareCurrentPdf() {
 function resetForm() {
   quoteDate.value = todayValue();
   clientName.value = "";
+  commercialConditions.value = "";
   state.items = [];
   createItem();
 }
@@ -531,6 +825,11 @@ function resetForm() {
 document.getElementById("newQuoteButton").addEventListener("click", () => {
   resetForm();
   showView("form");
+});
+
+document.getElementById("newTicketButton").addEventListener("click", () => {
+  resetTicketForm();
+  showView("ticketForm");
 });
 
 document.getElementById("historyButton").addEventListener("click", () => {
@@ -583,6 +882,46 @@ itemsList.addEventListener("click", (event) => {
 
 quoteDate.addEventListener("input", validateForm);
 clientName.addEventListener("input", validateForm);
+
+ticketDate.addEventListener("input", validateTicketForm);
+ticketClientName.addEventListener("input", validateTicketForm);
+ticketType.addEventListener("change", validateTicketForm);
+ticketServiceDescription.addEventListener("input", validateTicketForm);
+ticketDetails.addEventListener("input", validateTicketForm);
+ticketTotalAmount.addEventListener("input", validateTicketForm);
+ticketPaidAmount.addEventListener("input", validateTicketForm);
+
+ticketForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  validateTicketForm();
+  if (ticketContinueButton.disabled) return;
+
+  ticketContinueButton.disabled = true;
+  ticketContinueButton.textContent = "Generando...";
+  try {
+    const ticket = collectTicket();
+    await renderTicketPreview(ticket);
+    showView("ticketPreview");
+  } finally {
+    ticketContinueButton.textContent = "Continuar";
+    validateTicketForm();
+  }
+});
+
+document.getElementById("ticketHistoryButton").addEventListener("click", () => {
+  renderTicketHistory();
+  showView("ticketHistory");
+});
+
+document.getElementById("downloadTicketButton").addEventListener("click", downloadCurrentTicket);
+document.getElementById("shareTicketButton").addEventListener("click", () => {
+  shareCurrentTicket().catch(() => downloadCurrentTicket());
+});
+
+ticketHistoryList.addEventListener("click", (event) => {
+  const id = event.target.dataset.openTicket;
+  if (id) openTicketFromHistory(id);
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();

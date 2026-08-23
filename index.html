@@ -19,6 +19,7 @@
         </div>
         <div class="home-actions">
           <button class="primary-action" id="newQuoteButton" type="button">Generar una nueva cotización</button>
+          <button class="primary-action" id="newTicketButton" type="button">Generar ticket de pago</button>
           <button class="secondary-action" id="historyButton" type="button">Ver historial de cotizaciones</button>
         </div>
       </section>
@@ -46,6 +47,11 @@
           </div>
 
           <div id="itemsList" class="items-list"></div>
+
+          <label>
+            <span>Condiciones Comerciales</span>
+            <textarea id="commercialConditions" name="commercialConditions"></textarea>
+          </label>
 
           <div class="total-panel">
             <span>Costo total</span>
@@ -76,6 +82,83 @@
           <h2 id="historyTitle">Historial</h2>
         </header>
         <div id="historyList" class="history-list"></div>
+      </section>
+
+      <section class="view" id="ticketFormView" aria-labelledby="ticketFormTitle">
+        <header class="topbar">
+          <button class="icon-button" data-action="home" type="button" aria-label="Volver">‹</button>
+          <h2 id="ticketFormTitle">Ticket de pago</h2>
+        </header>
+
+        <form id="ticketForm" autocomplete="off">
+          <label>
+            <span>Fecha</span>
+            <input id="ticketDate" name="ticketDate" type="date" required>
+          </label>
+
+          <label>
+            <span>Nombre del cliente</span>
+            <input id="ticketClientName" name="ticketClientName" type="text" required>
+          </label>
+
+          <label>
+            <span>Tipo de ticket</span>
+            <select id="ticketType" name="ticketType" required>
+              <option value="advance">Adelanto</option>
+              <option value="full">Pago total</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Descripción del servicio</span>
+            <textarea id="ticketServiceDescription" name="ticketServiceDescription" required></textarea>
+          </label>
+
+          <label>
+            <span>Detalles adicionales</span>
+            <textarea id="ticketDetails" name="ticketDetails"></textarea>
+          </label>
+
+          <label id="ticketTotalAmountLabel">
+            <span>Monto total del servicio</span>
+            <input id="ticketTotalAmount" name="ticketTotalAmount" type="number" min="0" step="0.01">
+          </label>
+
+          <label>
+            <span>Monto cobrado</span>
+            <input id="ticketPaidAmount" name="ticketPaidAmount" type="number" min="0" step="0.01" required>
+          </label>
+
+          <div class="total-panel">
+            <span>Saldo pendiente</span>
+            <strong id="ticketPendingAmount">S/ 0.00</strong>
+          </div>
+
+          <button class="primary-action" id="ticketContinueButton" type="submit" disabled>Continuar</button>
+          <button class="secondary-action" id="ticketHistoryButton" type="button">Ver historial de tickets</button>
+        </form>
+      </section>
+
+      <section class="view" id="ticketPreviewView" aria-labelledby="ticketPreviewTitle">
+        <header class="topbar preview-topbar">
+          <button class="icon-button" data-action="ticketForm" type="button" aria-label="Editar">‹</button>
+          <h2 id="ticketPreviewTitle">Previsualización</h2>
+          <div class="preview-actions">
+            <button class="small-button" id="downloadTicketButton" type="button">Descargar JPG</button>
+            <button class="small-button" id="shareTicketButton" type="button">Compartir</button>
+          </div>
+        </header>
+        <div class="ticket-preview-scroll" aria-label="Previsualización de ticket de pago">
+          <canvas id="ticketPreviewCanvas"></canvas>
+        </div>
+      </section>
+
+      <section class="view" id="ticketHistoryView" aria-labelledby="ticketHistoryTitle">
+        <header class="topbar">
+          <button class="icon-button" data-action="ticketForm" type="button" aria-label="Volver">‹</button>
+          <h2 id="ticketHistoryTitle">Historial de tickets</h2>
+        </header>
+        <div id="ticketHistoryList" class="history-list"></div>
       </section>
     </main>
   </body>

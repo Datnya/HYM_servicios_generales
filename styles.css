@@ -22,6 +22,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   color: var(--black);
   font: inherit;
@@ -41,6 +42,7 @@ button:disabled {
 
 button:focus,
 input:focus,
+select:focus,
 textarea:focus {
   outline: 3px solid var(--yellow);
   outline-offset: 2px;
@@ -146,6 +148,7 @@ label {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   min-height: 48px;
@@ -237,6 +240,20 @@ textarea {
 }
 
 #pdfPreviewCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ticket-preview-scroll {
+  width: 100%;
+  min-height: calc(100vh - 132px);
+  border: 2px solid var(--black);
+  background: var(--white);
+  overflow: auto;
+}
+
+#ticketPreviewCanvas {
   display: block;
   width: 100%;
   height: auto;

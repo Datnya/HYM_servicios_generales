@@ -65,6 +65,7 @@ async function main() {
       };
       setValue("#quoteDate", "2026-08-22");
       setValue("#clientName", "Cliente de Prueba");
+      setValue("#commercialConditions", "Precio no incluye IGV. Garantia de 1 año. Entrega de 7 a 11 dias.");
       setValue("[data-field=description]", "Instalacion de camaras de seguridad");
       setValue("[data-field=quantity]", "2");
       setValue("[data-field=unitValue]", "150");
@@ -106,6 +107,34 @@ async function main() {
       downloadCurrentPdf();
       const historyAfterDownload = JSON.parse(localStorage.getItem("hym_quote_history") || "[]");
       renderHistory();
+      document.querySelector("[data-action=home]").click();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      document.querySelector("#newTicketButton").click();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      setValue("#ticketDate", "2026-08-22");
+      setValue("#ticketClientName", "Cliente Ticket");
+      setValue("#ticketServiceDescription", "Mantenimiento de sistema de camaras");
+      setValue("#ticketDetails", "Adelanto realizado por instalacion programada");
+      setValue("#ticketTotalAmount", "70");
+      setValue("#ticketPaidAmount", "30");
+      const ticketEnabledBeforeClick = !document.querySelector("#ticketContinueButton").disabled;
+      document.querySelector("#ticketContinueButton").click();
+      for (let i = 0; i < 80; i += 1) {
+        const ready =
+          document.querySelector("#ticketPreviewView").classList.contains("active") &&
+          document.querySelector("#ticketPreviewCanvas").width > 0 &&
+          state.currentTicketBlob;
+        if (ready) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      localStorage.removeItem("hym_ticket_history");
+      const ticketHistoryBeforeActions = JSON.parse(localStorage.getItem("hym_ticket_history") || "[]").length;
+      await shareCurrentTicket();
+      const ticketHistoryAfterShare = JSON.parse(localStorage.getItem("hym_ticket_history") || "[]");
+      localStorage.removeItem("hym_ticket_history");
+      downloadCurrentTicket();
+      const ticketHistoryAfterDownload = JSON.parse(localStorage.getItem("hym_ticket_history") || "[]");
+      renderTicketHistory();
       let binary = "";
       for (let i = 0; i < state.currentPdfBytes.length; i += 32768) {
         binary += String.fromCharCode(...state.currentPdfBytes.slice(i, i + 32768));
@@ -121,6 +150,14 @@ async function main() {
         sharedFileName: window.__sharedFileName,
         savedImageInHistory: historyAfterDownload[0]?.items?.[0]?.imageDataUrl?.startsWith("data:image/") || false,
         totalText: document.querySelector("#grandTotal").textContent,
+        ticketEnabledBeforeClick,
+        hasTicketCanvasPreview: document.querySelector("#ticketPreviewCanvas").width > 0,
+        ticketHistoryBeforeActions,
+        ticketHistoryAfterShare: ticketHistoryAfterShare.length,
+        ticketHistoryAfterDownload: ticketHistoryAfterDownload.length,
+        ticketHistoryViewItems: document.querySelectorAll("#ticketHistoryList .history-item").length,
+        ticketPendingText: document.querySelector("#ticketPendingAmount").textContent,
+        sharedTicketFileName: window.__sharedFileName,
         pdfBase64: btoa(binary)
       };
     })()

@@ -1,4 +1,4 @@
-const CACHE_NAME = "hym-cotizaciones-v6";
+const CACHE_NAME = "hym-cotizaciones-v7";
 const ASSETS = [
   "/",
   "/index.html",
