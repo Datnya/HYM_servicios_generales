@@ -20,7 +20,46 @@
         <div class="home-actions">
           <button class="primary-action" id="newQuoteButton" type="button">Generar una nueva cotización</button>
           <button class="primary-action" id="newTicketButton" type="button">Generar ticket de pago</button>
-          <button class="secondary-action" id="historyButton" type="button">Ver historial de cotizaciones</button>
+          <button class="secondary-action" id="managerButton" type="button">Gestor de ingresos y egresos</button>
+        </div>
+      </section>
+
+      <section class="view" id="managerView" aria-labelledby="managerTitle">
+        <header class="topbar">
+          <button class="icon-button" data-action="home" type="button" aria-label="Volver">‹</button>
+          <h2 id="managerTitle">Ingresos y egresos</h2>
+        </header>
+
+        <div class="finance-summary" aria-label="Resumen financiero">
+          <div class="summary-cell">
+            <span>Ingresos</span>
+            <strong id="managerIncome">S/ 0.00</strong>
+          </div>
+          <div class="summary-cell">
+            <span>Egresos</span>
+            <strong id="managerExpenses">S/ 0.00</strong>
+          </div>
+          <div class="summary-cell summary-balance">
+            <span>Balance</span>
+            <strong id="managerBalance">S/ 0.00</strong>
+          </div>
+        </div>
+
+        <label class="manager-filter">
+          <span>Mostrar movimientos</span>
+          <select id="managerFilter">
+            <option value="all">Todos</option>
+            <option value="quotes">Ingresos de cotizaciones</option>
+            <option value="tickets">Ingresos de tickets</option>
+            <option value="expenses">Egresos</option>
+          </select>
+        </label>
+
+        <div id="managerList" class="history-list manager-list"></div>
+
+        <div class="manager-history-actions">
+          <button class="secondary-action" id="quoteHistoryButton" type="button">Historial de cotizaciones</button>
+          <button class="secondary-action" id="managerTicketHistoryButton" type="button">Historial de tickets</button>
         </div>
       </section>
 
@@ -80,8 +119,8 @@
 
       <section class="view" id="historyView" aria-labelledby="historyTitle">
         <header class="topbar">
-          <button class="icon-button" data-action="home" type="button" aria-label="Volver">‹</button>
-          <h2 id="historyTitle">Historial</h2>
+          <button class="icon-button" data-action="manager" type="button" aria-label="Volver">‹</button>
+          <h2 id="historyTitle">Historial de cotizaciones</h2>
         </header>
         <div id="historyList" class="history-list"></div>
       </section>
@@ -94,16 +133,24 @@
 
         <form id="ticketForm" autocomplete="off">
           <label>
+            <span>Movimiento</span>
+            <select id="ticketMovementType" name="ticketMovementType" required>
+              <option value="income">Ingreso</option>
+              <option value="expense">Egreso</option>
+            </select>
+          </label>
+
+          <label>
             <span>Fecha</span>
             <input id="ticketDate" name="ticketDate" type="date" required>
           </label>
 
           <label>
-            <span>Nombre del cliente</span>
+            <span id="ticketClientLabel">Nombre del cliente</span>
             <input id="ticketClientName" name="ticketClientName" type="text" required>
           </label>
 
-          <label>
+          <label id="ticketTypeLabel">
             <span>Tipo de ticket</span>
             <select id="ticketType" name="ticketType" required>
               <option value="advance">Adelanto</option>
@@ -112,7 +159,7 @@
           </label>
 
           <label>
-            <span>Descripción del servicio</span>
+            <span id="ticketDescriptionLabel">Descripción del servicio</span>
             <textarea id="ticketServiceDescription" name="ticketServiceDescription" required></textarea>
           </label>
 
@@ -127,17 +174,16 @@
           </label>
 
           <label>
-            <span>Monto cobrado</span>
+            <span id="ticketPaidAmountLabel">Monto cobrado</span>
             <input id="ticketPaidAmount" name="ticketPaidAmount" type="number" min="0" step="0.01" required>
           </label>
 
-          <div class="total-panel">
+          <div class="total-panel" id="ticketPendingPanel">
             <span>Saldo pendiente</span>
             <strong id="ticketPendingAmount">S/ 0.00</strong>
           </div>
 
           <button class="primary-action" id="ticketContinueButton" type="submit" disabled>Continuar</button>
-          <button class="secondary-action" id="ticketHistoryButton" type="button">Ver historial de tickets</button>
         </form>
       </section>
 
@@ -157,7 +203,7 @@
 
       <section class="view" id="ticketHistoryView" aria-labelledby="ticketHistoryTitle">
         <header class="topbar">
-          <button class="icon-button" data-action="ticketForm" type="button" aria-label="Volver">‹</button>
+          <button class="icon-button" data-action="manager" type="button" aria-label="Volver">‹</button>
           <h2 id="ticketHistoryTitle">Historial de tickets</h2>
         </header>
         <div id="ticketHistoryList" class="history-list"></div>

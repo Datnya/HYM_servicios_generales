@@ -21,6 +21,7 @@ const state = {
 
 const views = {
   home: document.getElementById("homeView"),
+  manager: document.getElementById("managerView"),
   form: document.getElementById("formView"),
   preview: document.getElementById("previewView"),
   history: document.getElementById("historyView"),
@@ -41,18 +42,29 @@ const pdfPreviewPages = document.getElementById("pdfPreviewPages");
 const historyList = document.getElementById("historyList");
 const shareButton = document.getElementById("shareButton");
 const ticketForm = document.getElementById("ticketForm");
+const ticketMovementType = document.getElementById("ticketMovementType");
 const ticketDate = document.getElementById("ticketDate");
 const ticketClientName = document.getElementById("ticketClientName");
+const ticketClientLabel = document.getElementById("ticketClientLabel");
 const ticketType = document.getElementById("ticketType");
+const ticketTypeLabelElement = document.getElementById("ticketTypeLabel");
 const ticketServiceDescription = document.getElementById("ticketServiceDescription");
+const ticketDescriptionLabel = document.getElementById("ticketDescriptionLabel");
 const ticketDetails = document.getElementById("ticketDetails");
 const ticketTotalAmount = document.getElementById("ticketTotalAmount");
 const ticketTotalAmountLabel = document.getElementById("ticketTotalAmountLabel");
 const ticketPaidAmount = document.getElementById("ticketPaidAmount");
+const ticketPaidAmountLabel = document.getElementById("ticketPaidAmountLabel");
 const ticketPendingAmount = document.getElementById("ticketPendingAmount");
+const ticketPendingPanel = document.getElementById("ticketPendingPanel");
 const ticketContinueButton = document.getElementById("ticketContinueButton");
 const ticketPreviewCanvas = document.getElementById("ticketPreviewCanvas");
 const ticketHistoryList = document.getElementById("ticketHistoryList");
+const managerIncome = document.getElementById("managerIncome");
+const managerExpenses = document.getElementById("managerExpenses");
+const managerBalance = document.getElementById("managerBalance");
+const managerFilter = document.getElementById("managerFilter");
+const managerList = document.getElementById("managerList");
 
 function showView(name) {
   Object.values(views).forEach((view) => view.classList.remove("active"));
@@ -656,6 +668,7 @@ function renderHistory() {
 function deleteQuoteFromHistory(id) {
   writeHistory(readHistory().filter((quote) => quote.id !== id));
   renderHistory();
+  renderManager();
 }
 
 async function openHistoryQuote(id) {
@@ -674,17 +687,25 @@ function ticketFileName(ticket) {
     .replace(/^-|-$/g, "")
     .slice(0, 40)
     .toLowerCase();
-  return `ticket-hym-${safeClient || "cliente"}-${ticket.date}.jpg`;
+  const movement = ticket.movementType === "expense" ? "egreso" : "ingreso";
+  return `ticket-${movement}-hym-${safeClient || "cliente"}-${ticket.date}.jpg`;
 }
 
 function ticketPendingValue() {
+  if (ticketMovementType.value === "expense") return 0;
   if (ticketType.value !== "advance") return 0;
   return Math.max(0, Number(ticketTotalAmount.value || 0) - Number(ticketPaidAmount.value || 0));
 }
 
 function validateTicketForm() {
-  const isAdvance = ticketType.value === "advance";
+  const isExpense = ticketMovementType.value === "expense";
+  const isAdvance = !isExpense && ticketType.value === "advance";
+  ticketTypeLabelElement.style.display = isExpense ? "none" : "grid";
   ticketTotalAmountLabel.style.display = isAdvance ? "grid" : "none";
+  ticketPendingPanel.style.display = isAdvance ? "flex" : "none";
+  ticketClientLabel.textContent = isExpense ? "Persona o proveedor" : "Nombre del cliente";
+  ticketDescriptionLabel.textContent = isExpense ? "Descripción del egreso" : "Descripción del servicio";
+  ticketPaidAmountLabel.textContent = isExpense ? "Monto del egreso" : "Monto cobrado";
   ticketPendingAmount.textContent = formatCurrency(ticketPendingValue());
 
   const complete =
@@ -698,7 +719,8 @@ function validateTicketForm() {
 }
 
 function collectTicket() {
-  const isAdvance = ticketType.value === "advance";
+  const isExpense = ticketMovementType.value === "expense";
+  const isAdvance = !isExpense && ticketType.value === "advance";
   const paidAmount = Number(ticketPaidAmount.value || 0);
   const totalAmount = isAdvance ? Number(ticketTotalAmount.value || 0) : paidAmount;
   return {
@@ -706,7 +728,8 @@ function collectTicket() {
     createdAt: new Date().toISOString(),
     date: ticketDate.value,
     clientName: ticketClientName.value.trim(),
-    type: ticketType.value,
+    movementType: isExpense ? "expense" : "income",
+    type: isExpense ? "expense" : ticketType.value,
     serviceDescription: ticketServiceDescription.value.trim(),
     details: ticketDetails.value.trim(),
     paidAmount,
@@ -716,7 +739,12 @@ function collectTicket() {
 }
 
 function ticketTypeLabel(ticket) {
+  if (ticket.movementType === "expense" || ticket.type === "expense") return "Egreso";
   return ticket.type === "advance" ? "Adelanto" : "Pago total";
+}
+
+function ticketMovementLabel(ticket) {
+  return ticket.movementType === "expense" || ticket.type === "expense" ? "Egreso" : "Ingreso";
 }
 
 function drawTicketWrappedText(context, text, x, y, maxWidth, lineHeight, font) {
@@ -764,30 +792,33 @@ async function renderTicketPreview(ticket) {
   context.font = "700 46px Arial";
   context.fillText("HYM SERVICIOS GENERALES", 190, 78);
   context.font = "700 34px Arial";
-  context.fillText("TICKET DE PAGO", 190, 126);
+  context.fillText(ticket.movementType === "expense" ? "TICKET DE EGRESO" : "TICKET DE PAGO", 190, 126);
 
   context.textAlign = "center";
   context.font = "700 42px Arial";
   context.fillText(ticketTypeLabel(ticket).toUpperCase(), TICKET_WIDTH / 2, 235);
   context.textAlign = "left";
 
+  const isExpense = ticket.movementType === "expense" || ticket.type === "expense";
   const rows = [
     ["Fecha", formatDisplayDate(ticket.date)],
-    ["Cliente", ticket.clientName],
-    ["Servicio", ticket.serviceDescription],
+    [isExpense ? "Persona / proveedor" : "Cliente", ticket.clientName],
+    [isExpense ? "Descripción" : "Servicio", ticket.serviceDescription],
     ["Detalles", ticket.details || "-"],
-    ["Monto cobrado", formatCurrency(ticket.paidAmount)],
-    ["Monto total", formatCurrency(ticket.totalAmount)]
+    [isExpense ? "Monto del egreso" : "Monto cobrado", formatCurrency(ticket.paidAmount)]
   ];
+  if (!isExpense) rows.push(["Monto total", formatCurrency(ticket.totalAmount)]);
   if (ticket.type === "advance") rows.push(["Saldo pendiente", formatCurrency(ticket.pendingAmount)]);
 
   let y = 310;
   rows.forEach(([label, value]) => {
     context.font = "700 28px Arial";
     context.fillStyle = "#000000";
-    context.fillText(`${label}:`, 70, y);
+    const labelText = `${label}:`;
+    context.fillText(labelText, 70, y);
+    const valueX = Math.max(310, 70 + context.measureText(labelText).width + 24);
     context.font = "28px Arial";
-    y = drawTicketWrappedText(context, value, 310, y, 500, 36, "28px Arial") + 24;
+    y = drawTicketWrappedText(context, value, valueX, y, TICKET_WIDTH - valueX - 70, 36, "28px Arial") + 24;
   });
 
   context.fillStyle = "#fedd58";
@@ -798,13 +829,13 @@ async function renderTicketPreview(ticket) {
   context.textAlign = "center";
   context.fillStyle = "#000000";
   context.font = "700 30px Arial";
-  context.fillText(ticket.type === "advance" ? "SALDO PENDIENTE" : "PAGO COMPLETADO", TICKET_WIDTH / 2, y + 58);
+  context.fillText(isExpense ? "EGRESO REGISTRADO" : ticket.type === "advance" ? "SALDO PENDIENTE" : "PAGO COMPLETADO", TICKET_WIDTH / 2, y + 58);
   context.font = "700 42px Arial";
   context.fillText(ticket.type === "advance" ? formatCurrency(ticket.pendingAmount) : formatCurrency(ticket.paidAmount), TICKET_WIDTH / 2, y + 105);
   context.textAlign = "left";
 
   context.font = "24px Arial";
-  context.fillText("Gracias por confiar en HYM Servicios Generales.", 70, TICKET_HEIGHT - 92);
+  context.fillText(isExpense ? "Registro de egreso de HYM Servicios Generales." : "Gracias por confiar en HYM Servicios Generales.", 70, TICKET_HEIGHT - 92);
 
   state.currentTicket = ticket;
   state.currentTicketBlob = await new Promise((resolve) => {
@@ -828,14 +859,15 @@ function renderTicketHistory() {
     return;
   }
   history.forEach((ticket) => {
+    const isExpense = ticket.movementType === "expense" || ticket.type === "expense";
     const item = document.createElement("article");
     item.className = "history-item";
     item.innerHTML = `
       <div class="quote-line">
         <strong>${escapeHtml(ticket.clientName)}</strong>
-        <span>${formatCurrency(ticket.paidAmount)}</span>
+        <span>${isExpense ? "-" : ""}${formatCurrency(ticket.paidAmount)}</span>
       </div>
-      <div>${formatDisplayDate(ticket.date)} - ${ticketTypeLabel(ticket)}</div>
+      <div>${formatDisplayDate(ticket.date)} - ${ticketMovementLabel(ticket)} - ${ticketTypeLabel(ticket)}</div>
       <div class="history-actions">
         <button class="small-button" type="button" data-open-ticket="${ticket.id}">Ver ticket</button>
         <button class="small-button" type="button" data-delete-ticket="${ticket.id}">Borrar</button>
@@ -845,9 +877,76 @@ function renderTicketHistory() {
   });
 }
 
+function managerTransactions() {
+  const quotes = readHistory().map((quote) => ({
+    id: quote.id,
+    source: "quotes",
+    movementType: "income",
+    date: quote.date,
+    createdAt: quote.createdAt,
+    name: quote.clientName,
+    description: "Cotización",
+    amount: Number(quote.total || 0)
+  }));
+  const tickets = readTicketHistory().map((ticket) => {
+    const movementType = ticket.movementType === "expense" || ticket.type === "expense" ? "expense" : "income";
+    return {
+      id: ticket.id,
+      source: movementType === "expense" ? "expenses" : "tickets",
+      movementType,
+      date: ticket.date,
+      createdAt: ticket.createdAt,
+      name: ticket.clientName,
+      description: ticket.serviceDescription,
+      amount: Number(ticket.paidAmount || 0)
+    };
+  });
+  return [...quotes, ...tickets].sort((a, b) =>
+    String(b.createdAt || b.date).localeCompare(String(a.createdAt || a.date))
+  );
+}
+
+function renderManager() {
+  const transactions = managerTransactions();
+  const income = transactions
+    .filter((entry) => entry.movementType === "income")
+    .reduce((total, entry) => total + entry.amount, 0);
+  const expenses = transactions
+    .filter((entry) => entry.movementType === "expense")
+    .reduce((total, entry) => total + entry.amount, 0);
+
+  managerIncome.textContent = formatCurrency(income);
+  managerExpenses.textContent = formatCurrency(expenses);
+  managerBalance.textContent = formatCurrency(income - expenses);
+
+  const filtered = managerFilter.value === "all"
+    ? transactions
+    : transactions.filter((entry) => entry.source === managerFilter.value);
+  managerList.innerHTML = "";
+  if (!filtered.length) {
+    managerList.innerHTML = `<div class="empty-state">No hay movimientos en este filtro.</div>`;
+    return;
+  }
+
+  filtered.forEach((entry) => {
+    const item = document.createElement("article");
+    item.className = "history-item";
+    item.innerHTML = `
+      <div class="quote-line">
+        <strong>${escapeHtml(entry.name)}</strong>
+        <span>${entry.movementType === "expense" ? "-" : "+"}${formatCurrency(entry.amount)}</span>
+      </div>
+      <div class="movement-kind">${entry.movementType === "expense" ? "Egreso" : entry.source === "quotes" ? "Ingreso - Cotización" : "Ingreso - Ticket"}</div>
+      <div>${formatDisplayDate(entry.date)} - ${escapeHtml(entry.description || "Sin descripción")}</div>
+    `;
+    managerList.appendChild(item);
+  });
+}
+
 function deleteTicketFromHistory(id) {
   writeTicketHistory(readTicketHistory().filter((ticket) => ticket.id !== id));
   renderTicketHistory();
+  renderManager();
 }
 
 async function openTicketFromHistory(id) {
@@ -861,6 +960,7 @@ function downloadCurrentTicket() {
   if (!state.currentTicket || !state.currentTicketUrl) return;
   saveTicketToHistory(state.currentTicket);
   renderTicketHistory();
+  renderManager();
   const link = document.createElement("a");
   link.href = state.currentTicketUrl;
   link.download = ticketFileName(state.currentTicket);
@@ -876,12 +976,13 @@ async function shareCurrentTicket() {
   });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     await navigator.share({
-      title: "Ticket de pago HYM",
-      text: `Ticket de pago para ${state.currentTicket.clientName}`,
+      title: state.currentTicket.movementType === "expense" ? "Ticket de egreso HYM" : "Ticket de pago HYM",
+      text: `${state.currentTicket.movementType === "expense" ? "Ticket de egreso" : "Ticket de pago"} para ${state.currentTicket.clientName}`,
       files: [file]
     });
     saveTicketToHistory(state.currentTicket);
     renderTicketHistory();
+    renderManager();
     return;
   }
   downloadCurrentTicket();
@@ -889,6 +990,7 @@ async function shareCurrentTicket() {
 }
 
 function resetTicketForm() {
+  ticketMovementType.value = "income";
   ticketDate.value = todayValue();
   ticketClientName.value = "";
   ticketType.value = "advance";
@@ -903,6 +1005,7 @@ function downloadCurrentPdf() {
   if (!state.currentPdfUrl || !state.currentQuote) return;
   saveQuoteToHistory(state.currentQuote);
   renderHistory();
+  renderManager();
   const link = document.createElement("a");
   link.href = state.currentPdfUrl;
   link.download = quoteFileName(state.currentQuote);
@@ -925,6 +1028,7 @@ async function shareCurrentPdf() {
     });
     saveQuoteToHistory(state.currentQuote);
     renderHistory();
+    renderManager();
     return;
   }
 
@@ -950,9 +1054,19 @@ document.getElementById("newTicketButton").addEventListener("click", () => {
   showView("ticketForm");
 });
 
-document.getElementById("historyButton").addEventListener("click", () => {
+document.getElementById("managerButton").addEventListener("click", () => {
+  renderManager();
+  showView("manager");
+});
+
+document.getElementById("quoteHistoryButton").addEventListener("click", () => {
   renderHistory();
   showView("history");
+});
+
+document.getElementById("managerTicketHistoryButton").addEventListener("click", () => {
+  renderTicketHistory();
+  showView("ticketHistory");
 });
 
 document.querySelectorAll("[data-action]").forEach((button) => {
@@ -1002,6 +1116,7 @@ quoteDate.addEventListener("input", validateForm);
 clientName.addEventListener("input", validateForm);
 
 ticketDate.addEventListener("input", validateTicketForm);
+ticketMovementType.addEventListener("change", validateTicketForm);
 ticketClientName.addEventListener("input", validateTicketForm);
 ticketType.addEventListener("change", validateTicketForm);
 ticketServiceDescription.addEventListener("input", validateTicketForm);
@@ -1026,10 +1141,7 @@ ticketForm.addEventListener("submit", async (event) => {
   }
 });
 
-document.getElementById("ticketHistoryButton").addEventListener("click", () => {
-  renderTicketHistory();
-  showView("ticketHistory");
-});
+managerFilter.addEventListener("change", renderManager);
 
 document.getElementById("downloadTicketButton").addEventListener("click", downloadCurrentTicket);
 document.getElementById("shareTicketButton").addEventListener("click", () => {

@@ -111,6 +111,7 @@ async function main() {
       renderHistory();
       document.querySelector("[data-delete-history]").click();
       const historyAfterDelete = JSON.parse(localStorage.getItem("hym_quote_history") || "[]");
+      const historyViewItemsAfterDelete = document.querySelectorAll("#historyList .history-item").length;
       document.querySelector("[data-action=home]").click();
       await new Promise((resolve) => setTimeout(resolve, 100));
       document.querySelector("#newTicketButton").click();
@@ -131,6 +132,8 @@ async function main() {
         if (ready) break;
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+      const incomeTicket = state.currentTicket;
+      const ticketPendingTextBeforeExpense = document.querySelector("#ticketPendingAmount").textContent;
       localStorage.removeItem("hym_ticket_history");
       const ticketHistoryBeforeActions = JSON.parse(localStorage.getItem("hym_ticket_history") || "[]").length;
       await shareCurrentTicket();
@@ -141,6 +144,48 @@ async function main() {
       renderTicketHistory();
       document.querySelector("[data-delete-ticket]").click();
       const ticketHistoryAfterDelete = JSON.parse(localStorage.getItem("hym_ticket_history") || "[]");
+      const ticketHistoryViewItemsAfterDelete = document.querySelectorAll("#ticketHistoryList .history-item").length;
+
+      saveQuoteToHistory(state.currentQuote);
+      saveTicketToHistory(incomeTicket);
+      setValue("#ticketMovementType", "expense");
+      document.querySelector("#ticketMovementType").dispatchEvent(new Event("change", { bubbles: true }));
+      setValue("#ticketDate", "2026-08-23");
+      setValue("#ticketClientName", "Proveedor de materiales");
+      setValue("#ticketServiceDescription", "Compra de cableado y conectores");
+      setValue("#ticketDetails", "Materiales para instalacion");
+      setValue("#ticketPaidAmount", "25");
+      const expenseEnabledBeforeClick = !document.querySelector("#ticketContinueButton").disabled;
+      document.querySelector("#ticketForm").requestSubmit();
+      for (let i = 0; i < 80 && state.currentTicket?.movementType !== "expense"; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const expenseTicket = state.currentTicket;
+      saveTicketToHistory(expenseTicket);
+      renderManager();
+      const managerTotals = {
+        income: document.querySelector("#managerIncome").textContent,
+        expenses: document.querySelector("#managerExpenses").textContent,
+        balance: document.querySelector("#managerBalance").textContent
+      };
+      const managerAllItems = document.querySelectorAll("#managerList .history-item").length;
+      document.querySelector("#managerFilter").value = "quotes";
+      renderManager();
+      const managerQuoteItems = document.querySelectorAll("#managerList .history-item").length;
+      document.querySelector("#managerFilter").value = "tickets";
+      renderManager();
+      const managerIncomeTicketItems = document.querySelectorAll("#managerList .history-item").length;
+      document.querySelector("#managerFilter").value = "expenses";
+      renderManager();
+      const managerExpenseItems = document.querySelectorAll("#managerList .history-item").length;
+
+      renderTicketHistory();
+      document.querySelector('[data-delete-ticket="' + expenseTicket.id + '"]').click();
+      const expenseDeletedFromHistory = !readTicketHistory().some((ticket) => ticket.id === expenseTicket.id);
+      const managerExpensesAfterDelete = document.querySelector("#managerExpenses").textContent;
+
+      localStorage.removeItem("hym_quote_history");
+      localStorage.removeItem("hym_ticket_history");
       let binary = "";
       for (let i = 0; i < state.currentPdfBytes.length; i += 32768) {
         binary += String.fromCharCode(...state.currentPdfBytes.slice(i, i + 32768));
@@ -155,7 +200,7 @@ async function main() {
         historyAfterShare: historyAfterShare.length,
         historyAfterDownload: historyAfterDownload.length,
         historyAfterDelete: historyAfterDelete.length,
-        historyViewItems: document.querySelectorAll(".history-item").length,
+        historyViewItems: historyViewItemsAfterDelete,
         sharedFileName: window.__sharedFileName,
         savedImageInHistory: historyAfterDownload[0]?.items?.[0]?.imageDataUrl?.startsWith("data:image/") || false,
         totalText: document.querySelector("#grandTotal").textContent,
@@ -165,9 +210,20 @@ async function main() {
         ticketHistoryAfterShare: ticketHistoryAfterShare.length,
         ticketHistoryAfterDownload: ticketHistoryAfterDownload.length,
         ticketHistoryAfterDelete: ticketHistoryAfterDelete.length,
-        ticketHistoryViewItems: document.querySelectorAll("#ticketHistoryList .history-item").length,
-        ticketPendingText: document.querySelector("#ticketPendingAmount").textContent,
+        ticketHistoryViewItems: ticketHistoryViewItemsAfterDelete,
+        ticketPendingText: ticketPendingTextBeforeExpense,
         sharedTicketFileName: window.__sharedFileName,
+        expenseEnabledBeforeClick,
+        expenseTicketMovementType: expenseTicket?.movementType,
+        expenseTicketAmount: expenseTicket?.paidAmount,
+        managerTotals,
+        managerAllItems,
+        managerQuoteItems,
+        managerIncomeTicketItems,
+        managerExpenseItems,
+        expenseDeletedFromHistory,
+        managerExpensesAfterDelete,
+        ticketImageBase64: document.querySelector("#ticketPreviewCanvas").toDataURL("image/jpeg", 0.92).split(",")[1],
         pdfBase64: btoa(binary)
       };
     })()
@@ -188,6 +244,12 @@ async function main() {
     fs.mkdirSync(outputDir, { recursive: true });
     fs.writeFileSync(path.join(outputDir, "cotizacion-prueba.pdf"), Buffer.from(value.pdfBase64, "base64"));
     delete value.pdfBase64;
+  }
+  if (value.ticketImageBase64) {
+    const outputDir = path.join(process.cwd(), "tmp", "test-output");
+    fs.mkdirSync(outputDir, { recursive: true });
+    fs.writeFileSync(path.join(outputDir, "ticket-egreso-prueba.jpg"), Buffer.from(value.ticketImageBase64, "base64"));
+    delete value.ticketImageBase64;
   }
   console.log(JSON.stringify(value, null, 2));
   ws.close();

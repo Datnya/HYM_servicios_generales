@@ -100,9 +100,63 @@ h3 {
 .home-actions,
 form,
 .items-list,
-.history-list {
+.history-list,
+.manager-history-actions {
   display: grid;
   gap: 16px;
+}
+
+.finance-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 2px solid var(--black);
+  margin-bottom: 16px;
+}
+
+.summary-cell {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border-bottom: 2px solid var(--black);
+}
+
+.summary-cell:first-child {
+  border-right: 2px solid var(--black);
+}
+
+.summary-cell span {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.summary-cell strong {
+  overflow-wrap: anywhere;
+  font-size: 20px;
+}
+
+.summary-balance {
+  grid-column: 1 / -1;
+  border-bottom: 0;
+  background: var(--yellow);
+}
+
+.manager-filter {
+  margin-bottom: 16px;
+}
+
+.manager-list {
+  margin-bottom: 20px;
+}
+
+.movement-kind {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.manager-history-actions {
+  padding-bottom: 28px;
 }
 
 .primary-action,
