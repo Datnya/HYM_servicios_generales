@@ -291,8 +291,50 @@ textarea {
 .preview-actions {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
+}
+
+.layout-editor-controls {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 2px solid var(--black);
+  background: var(--white);
+}
+
+.coordinate-grid,
+.layout-editor-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.layout-editor-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.layout-editor-actions .primary-action,
+.layout-editor-actions .secondary-action {
+  min-height: 48px;
+  padding: 10px;
+  font-size: 16px;
+}
+
+.layout-editor-stage {
+  border: 2px solid var(--black);
+  background: var(--white);
+  overflow: auto;
+  touch-action: none;
+}
+
+#layoutEditorCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: move;
+  touch-action: none;
 }
 
 .pdf-preview-scroll {

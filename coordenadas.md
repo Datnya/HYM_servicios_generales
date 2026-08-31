@@ -2,6 +2,8 @@
 
 Este archivo documenta las posiciones de la plantilla `assets/cotizacion-hym.pdf` y de los textos que agrega el software. Debe actualizarse cada vez que se cambie una posición en `app.js`.
 
+Las posiciones de fecha, cliente, descripción, total y condiciones también pueden modificarse desde el botón `Ajustar texto` de la previsualización. Al guardar, el software conserva los valores en el almacenamiento local con la clave `hym_quote_layout` y los aplica a los PDF posteriores.
+
 ## Sistema de coordenadas
 
 - Tamaño de página: **595.50 × 842.25 puntos** (A4).
@@ -122,3 +124,4 @@ Resultado esperado: X=161, Y inicial=428
 | 2026-08-30 | Mapa inicial | - | Documento completo | Crear referencia común para futuros ajustes |
 | 2026-08-30 | Descripción | Y inicial 430, tamaño adaptable | Y inicial 450, tamaño 9 y paginación | Evitar cualquier pérdida de texto |
 | 2026-08-30 | Nombre del cliente | X=80, Y=621 | X=80, Y=619 | Alinear visualmente con `Cliente:` |
+| 2026-08-30 | Coordenadas variables | Valores fijos en código | Editor visual y almacenamiento local | Permitir ajuste manual en tiempo real |

@@ -2,12 +2,20 @@ const TEMPLATE_URL = "assets/cotizacion-hym.pdf";
 const PREVIEW_TEMPLATE_URL = "assets/cotizacion-preview.png";
 const HISTORY_KEY = "hym_quote_history";
 const TICKET_HISTORY_KEY = "hym_ticket_history";
+const QUOTE_LAYOUT_KEY = "hym_quote_layout";
 const MAX_ITEMS_IN_TEMPLATE = 8;
 const MAX_ITEM_IMAGE_SIZE = 700;
 const PDF_PAGE_WIDTH = 595.5;
 const PDF_PAGE_HEIGHT = 842.25;
 const TICKET_WIDTH = 900;
 const TICKET_HEIGHT = 1280;
+const DEFAULT_QUOTE_LAYOUT = Object.freeze({
+  date: { x: 60, y: 665, size: 11 },
+  client: { x: 80, y: 619, size: 12 },
+  description: { x: 164, y: 450, size: 9 },
+  total: { x: 493, y: 233, size: 13 },
+  conditions: { x: 38, y: 156, size: 9 }
+});
 
 const state = {
   currentPdfUrl: "",
@@ -16,6 +24,7 @@ const state = {
   currentTicket: null,
   currentTicketBlob: null,
   currentTicketUrl: "",
+  layoutDraft: null,
   items: []
 };
 
@@ -24,6 +33,7 @@ const views = {
   manager: document.getElementById("managerView"),
   form: document.getElementById("formView"),
   preview: document.getElementById("previewView"),
+  layoutEditor: document.getElementById("layoutEditorView"),
   history: document.getElementById("historyView"),
   ticketForm: document.getElementById("ticketFormView"),
   ticketPreview: document.getElementById("ticketPreviewView"),
@@ -65,10 +75,44 @@ const managerExpenses = document.getElementById("managerExpenses");
 const managerBalance = document.getElementById("managerBalance");
 const managerFilter = document.getElementById("managerFilter");
 const managerList = document.getElementById("managerList");
+const layoutFieldSelect = document.getElementById("layoutFieldSelect");
+const layoutX = document.getElementById("layoutX");
+const layoutY = document.getElementById("layoutY");
+const layoutSize = document.getElementById("layoutSize");
+const layoutEditorCanvas = document.getElementById("layoutEditorCanvas");
+const layoutEditorStage = document.getElementById("layoutEditorStage");
+const saveLayoutButton = document.getElementById("saveLayoutButton");
 
 function showView(name) {
   Object.values(views).forEach((view) => view.classList.remove("active"));
   views[name].classList.add("active");
+}
+
+function cloneQuoteLayout(layout = DEFAULT_QUOTE_LAYOUT) {
+  return Object.fromEntries(
+    Object.entries(layout).map(([key, value]) => [key, { ...value }])
+  );
+}
+
+function readQuoteLayout() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(QUOTE_LAYOUT_KEY) || "{}");
+    const layout = cloneQuoteLayout();
+    Object.keys(layout).forEach((key) => {
+      const candidate = saved[key];
+      if (!candidate) return;
+      ["x", "y", "size"].forEach((property) => {
+        if (Number.isFinite(Number(candidate[property]))) layout[key][property] = Number(candidate[property]);
+      });
+    });
+    return layout;
+  } catch {
+    return cloneQuoteLayout();
+  }
+}
+
+function writeQuoteLayout(layout) {
+  localStorage.setItem(QUOTE_LAYOUT_KEY, JSON.stringify(layout));
 }
 
 function todayValue() {
@@ -412,10 +456,10 @@ function wrapCanvasText(context, text, size, maxWidth) {
   return lines;
 }
 
-function createItemTablePages(items, wrapDescription) {
+function createItemTablePages(items, wrapDescription, options = {}) {
   const availableHeight = 192;
-  const fontSize = 9;
-  const lineHeight = 11;
+  const fontSize = Number(options.fontSize || 9);
+  const lineHeight = fontSize + 2;
   const pages = [[]];
   let usedHeight = 0;
 
@@ -460,7 +504,7 @@ function createItemTablePages(items, wrapDescription) {
   });
 
   return pages.map((pageRows) => {
-    let rowY = 450;
+    let rowY = Number(options.startY || 450);
     return pageRows.map((row) => {
       const positionedRow = { ...row, rowY };
       rowY -= row.height;
@@ -478,29 +522,45 @@ function wrapCanvasTextPreservingBreaks(context, text, size, maxWidth) {
     });
 }
 
-async function renderQuotePreview(quote) {
+async function renderQuotePreview(quote, options = {}) {
+  const layout = options.layout || readQuoteLayout();
+  const pagesElement = options.pagesElement || pdfPreviewPages;
+  const primaryCanvas = options.primaryCanvas || pdfPreviewCanvas;
   const template = await loadImage(PREVIEW_TEMPLATE_URL);
   const previewItems = quote.items.slice(0, MAX_ITEMS_IN_TEMPLATE);
   const measurementCanvas = document.createElement("canvas");
   measurementCanvas.width = template.naturalWidth;
   measurementCanvas.height = template.naturalHeight;
   const measurementContext = measurementCanvas.getContext("2d");
-  const pageLayouts = createItemTablePages(previewItems, (description, size) =>
-    wrapCanvasText(measurementContext, description, size, 190)
+  const pageLayouts = createItemTablePages(
+    previewItems,
+    (description, size) => wrapCanvasText(measurementContext, description, size, 190),
+    { fontSize: layout.description.size, startY: layout.description.y }
   );
 
-  pdfPreviewPages.innerHTML = "";
-  for (const [pageIndex, pageRows] of pageLayouts.entries()) {
-    const canvas = pageIndex === 0 ? pdfPreviewCanvas : document.createElement("canvas");
+  if (options.maxPages) {
+    if (primaryCanvas.parentElement !== pagesElement) {
+      pagesElement.innerHTML = "";
+      pagesElement.appendChild(primaryCanvas);
+    }
+  } else {
+    pagesElement.innerHTML = "";
+  }
+  const editLastPage = options.selectedField === "total" || options.selectedField === "conditions";
+  const visibleEntries = options.maxPages
+    ? [[editLastPage ? pageLayouts.length - 1 : 0, editLastPage ? pageLayouts.at(-1) : pageLayouts[0]]]
+    : pageLayouts.map((rows, index) => [index, rows]);
+  for (const [visibleIndex, [pageIndex, pageRows]] of visibleEntries.entries()) {
+    const canvas = visibleIndex === 0 ? primaryCanvas : document.createElement("canvas");
     canvas.className = "pdf-preview-page";
     canvas.width = template.naturalWidth;
     canvas.height = template.naturalHeight;
-    pdfPreviewPages.appendChild(canvas);
+    if (canvas.parentElement !== pagesElement) pagesElement.appendChild(canvas);
     const context = canvas.getContext("2d");
     context.drawImage(template, 0, 0);
 
-    drawPreviewText(context, formatDisplayDate(quote.date), 60, 665, 11);
-    drawPreviewText(context, quote.clientName, 80, 619, 12, true);
+    drawPreviewText(context, formatDisplayDate(quote.date), layout.date.x, layout.date.y, layout.date.size);
+    drawPreviewText(context, quote.clientName, layout.client.x, layout.client.y, layout.client.size, true);
 
     for (const row of pageRows) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY, firstSegment } = row;
@@ -527,7 +587,7 @@ async function renderQuotePreview(quote) {
       }
 
       lines.forEach((line, lineIndex) => {
-        drawPreviewText(context, line, 164, rowY - lineIndex * lineHeight, fontSize);
+        drawPreviewText(context, line, layout.description.x, rowY - lineIndex * lineHeight, fontSize);
       });
       if (firstSegment) {
         drawPreviewRight(context, item.quantity, 360, rowY, 45, 10);
@@ -537,17 +597,86 @@ async function renderQuotePreview(quote) {
     }
 
     const isLastPage = pageIndex === pageLayouts.length - 1;
-    if (isLastPage) drawPreviewCenter(context, toMoney(quote.total), 493, 233, 65, 13, true);
+    if (isLastPage) drawPreviewCenter(context, toMoney(quote.total), layout.total.x, layout.total.y, 65, layout.total.size, true);
 
     if (isLastPage && quote.commercialConditions) {
-      wrapCanvasTextPreservingBreaks(context, quote.commercialConditions, 9, 500).slice(0, 8).forEach((line, lineIndex) => {
-        if (line) drawPreviewText(context, line, 38, 156 - lineIndex * 12, 9);
+      wrapCanvasTextPreservingBreaks(context, quote.commercialConditions, layout.conditions.size, 500).slice(0, 8).forEach((line, lineIndex) => {
+        if (line) drawPreviewText(context, line, layout.conditions.x, layout.conditions.y - lineIndex * (layout.conditions.size + 3), layout.conditions.size);
       });
+    }
+
+    if (visibleIndex === 0 && options.selectedField) {
+      const selected = layout[options.selectedField];
+      const scaleX = canvas.width / PDF_PAGE_WIDTH;
+      const scaleY = canvas.height / PDF_PAGE_HEIGHT;
+      const markerX = selected.x * scaleX;
+      const markerY = (PDF_PAGE_HEIGHT - selected.y) * scaleY;
+      context.strokeStyle = "#fedd58";
+      context.lineWidth = 8;
+      context.beginPath();
+      context.arc(markerX, markerY, 16, 0, Math.PI * 2);
+      context.stroke();
+      context.strokeStyle = "#000000";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(markerX - 22, markerY);
+      context.lineTo(markerX + 22, markerY);
+      context.moveTo(markerX, markerY - 22);
+      context.lineTo(markerX, markerY + 22);
+      context.stroke();
     }
   }
 }
 
+function syncLayoutControls() {
+  const selected = state.layoutDraft[layoutFieldSelect.value];
+  layoutX.value = selected.x;
+  layoutY.value = selected.y;
+  layoutSize.value = selected.size;
+}
+
+let layoutRenderFrame = 0;
+function queueLayoutEditorRender() {
+  cancelAnimationFrame(layoutRenderFrame);
+  layoutRenderFrame = requestAnimationFrame(() => {
+    renderQuotePreview(state.currentQuote, {
+      layout: state.layoutDraft,
+      pagesElement: layoutEditorStage,
+      primaryCanvas: layoutEditorCanvas,
+      maxPages: 1,
+      selectedField: layoutFieldSelect.value
+    });
+  });
+}
+
+function updateLayoutDraftFromControls() {
+  const selected = state.layoutDraft[layoutFieldSelect.value];
+  selected.x = Number(layoutX.value || 0);
+  selected.y = Number(layoutY.value || 0);
+  selected.size = Math.max(5, Number(layoutSize.value || 5));
+  queueLayoutEditorRender();
+}
+
+function openLayoutEditor() {
+  if (!state.currentQuote) return;
+  state.layoutDraft = readQuoteLayout();
+  syncLayoutControls();
+  showView("layoutEditor");
+  queueLayoutEditorRender();
+}
+
+function moveSelectedLayoutField(event) {
+  const rect = layoutEditorCanvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const selected = state.layoutDraft[layoutFieldSelect.value];
+  selected.x = Math.max(0, Math.min(PDF_PAGE_WIDTH, ((event.clientX - rect.left) / rect.width) * PDF_PAGE_WIDTH));
+  selected.y = Math.max(0, Math.min(PDF_PAGE_HEIGHT, PDF_PAGE_HEIGHT - ((event.clientY - rect.top) / rect.height) * PDF_PAGE_HEIGHT));
+  syncLayoutControls();
+  queueLayoutEditorRender();
+}
+
 async function generatePdf(quote) {
+  const layout = readQuoteLayout();
   const templateBytes = await fetch(TEMPLATE_URL).then((response) => response.arrayBuffer());
   const templateDoc = await PDFLib.PDFDocument.load(templateBytes);
   const pdfDoc = await PDFLib.PDFDocument.create();
@@ -555,15 +684,17 @@ async function generatePdf(quote) {
   const boldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
 
   const pdfItems = quote.items.slice(0, MAX_ITEMS_IN_TEMPLATE);
-  const pageLayouts = createItemTablePages(pdfItems, (description, size) =>
-    wrapText(description, regularFont, size, 190)
+  const pageLayouts = createItemTablePages(
+    pdfItems,
+    (description, size) => wrapText(description, regularFont, size, 190),
+    { fontSize: layout.description.size, startY: layout.description.y }
   );
 
   const copiedPages = await pdfDoc.copyPages(templateDoc, pageLayouts.map(() => 0));
   for (const [pageIndex, page] of copiedPages.entries()) {
     pdfDoc.addPage(page);
-    drawText(page, formatDisplayDate(quote.date), { x: 60, y: 665, size: 11, font: regularFont });
-    drawText(page, quote.clientName, { x: 80, y: 619, size: 12, font: boldFont });
+    drawText(page, formatDisplayDate(quote.date), { ...layout.date, font: regularFont });
+    drawText(page, quote.clientName, { ...layout.client, font: boldFont });
 
     for (const row of pageLayouts[pageIndex]) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY, firstSegment } = row;
@@ -584,7 +715,7 @@ async function generatePdf(quote) {
       }
       lines.forEach((line, lineIndex) => {
         drawText(page, line, {
-          x: 164,
+          x: layout.description.x,
           y: rowY - lineIndex * lineHeight,
           size: fontSize,
           font: regularFont
@@ -598,15 +729,15 @@ async function generatePdf(quote) {
     }
 
     const isLastPage = pageIndex === pageLayouts.length - 1;
-    if (isLastPage) drawCenter(page, toMoney(quote.total), 493, 233, 65, 13, boldFont);
+    if (isLastPage) drawCenter(page, toMoney(quote.total), layout.total.x, layout.total.y, 65, layout.total.size, boldFont);
 
     if (isLastPage && quote.commercialConditions) {
-      wrapTextPreservingBreaks(quote.commercialConditions, regularFont, 9, 500).slice(0, 8).forEach((line, lineIndex) => {
+      wrapTextPreservingBreaks(quote.commercialConditions, regularFont, layout.conditions.size, 500).slice(0, 8).forEach((line, lineIndex) => {
         if (!line) return;
         drawText(page, line, {
-          x: 38,
-          y: 156 - lineIndex * 12,
-          size: 9,
+          x: layout.conditions.x,
+          y: layout.conditions.y - lineIndex * (layout.conditions.size + 3),
+          size: layout.conditions.size,
           font: regularFont
         });
       });
@@ -1067,6 +1198,55 @@ document.getElementById("quoteHistoryButton").addEventListener("click", () => {
 document.getElementById("managerTicketHistoryButton").addEventListener("click", () => {
   renderTicketHistory();
   showView("ticketHistory");
+});
+
+document.getElementById("openLayoutEditorButton").addEventListener("click", openLayoutEditor);
+
+layoutFieldSelect.addEventListener("change", () => {
+  syncLayoutControls();
+  queueLayoutEditorRender();
+});
+
+[layoutX, layoutY, layoutSize].forEach((input) => {
+  input.addEventListener("input", updateLayoutDraftFromControls);
+});
+
+document.getElementById("resetLayoutFieldButton").addEventListener("click", () => {
+  state.layoutDraft[layoutFieldSelect.value] = { ...DEFAULT_QUOTE_LAYOUT[layoutFieldSelect.value] };
+  syncLayoutControls();
+  queueLayoutEditorRender();
+});
+
+let draggingLayoutField = false;
+layoutEditorCanvas.addEventListener("pointerdown", (event) => {
+  draggingLayoutField = true;
+  layoutEditorCanvas.setPointerCapture(event.pointerId);
+  moveSelectedLayoutField(event);
+});
+layoutEditorCanvas.addEventListener("pointermove", (event) => {
+  if (draggingLayoutField) moveSelectedLayoutField(event);
+});
+layoutEditorCanvas.addEventListener("pointerup", (event) => {
+  draggingLayoutField = false;
+  if (layoutEditorCanvas.hasPointerCapture(event.pointerId)) layoutEditorCanvas.releasePointerCapture(event.pointerId);
+});
+layoutEditorCanvas.addEventListener("pointercancel", () => {
+  draggingLayoutField = false;
+});
+
+saveLayoutButton.addEventListener("click", async () => {
+  if (!state.currentQuote || !state.layoutDraft) return;
+  saveLayoutButton.disabled = true;
+  saveLayoutButton.textContent = "Guardando...";
+  try {
+    writeQuoteLayout(state.layoutDraft);
+    const bytes = await generatePdf(state.currentQuote);
+    setPdfPreview(bytes, state.currentQuote);
+    showView("preview");
+  } finally {
+    saveLayoutButton.disabled = false;
+    saveLayoutButton.textContent = "Guardar en PDF";
+  }
 });
 
 document.querySelectorAll("[data-action]").forEach((button) => {
