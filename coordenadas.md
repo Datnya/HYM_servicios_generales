@@ -13,14 +13,14 @@ Este archivo documenta las posiciones de la plantilla `assets/cotizacion-hym.pdf
 - Las posiciones del software representan la línea base del texto, no su borde superior.
 - Conversión desde una coordenada medida desde arriba: `Y PDF = 842.25 - Y superior`.
 
-Ejemplo: mover el cliente 2 puntos hacia arriba significa cambiar `(80, 621)` por `(80, 623)`.
+Ejemplo: mover el cliente 2 puntos hacia arriba significa cambiar `(80, 619)` por `(80, 621)`.
 
 ## Datos variables agregados por el software
 
 | Dato | X | Y | Tamaño | Alineación o límite | Observación |
 |---|---:|---:|---:|---|---|
 | Fecha | 60 | 665 | 11 | Izquierda | Se escribe a la derecha de `Lima,` |
-| Nombre del cliente | 80 | 621 | 12 | Izquierda, negrita | Se escribe a la derecha de `Cliente:` |
+| Nombre del cliente | 80 | 619 | 12 | Izquierda, negrita | Se escribe a la derecha de `Cliente:` |
 | Número de ítem | 46 | 450 inicial | 10 | Izquierda, negrita | `Y` cambia según la altura de cada ítem |
 | Centro de imagen | 115 | Depende del ítem | - | Máximo 70 × 44 | La imagen queda centrada alrededor del `Y` del ítem |
 | Descripción | 164 | 450 inicial | 9 | Izquierda, ancho máximo 190 | Divide el texto en líneas y continúa en páginas adicionales |
@@ -121,3 +121,4 @@ Resultado esperado: X=161, Y inicial=428
 |---|---|---|---|---|
 | 2026-08-30 | Mapa inicial | - | Documento completo | Crear referencia común para futuros ajustes |
 | 2026-08-30 | Descripción | Y inicial 430, tamaño adaptable | Y inicial 450, tamaño 9 y paginación | Evitar cualquier pérdida de texto |
+| 2026-08-30 | Nombre del cliente | X=80, Y=621 | X=80, Y=619 | Alinear visualmente con `Cliente:` |

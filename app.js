@@ -488,7 +488,7 @@ async function renderQuotePreview(quote) {
     context.drawImage(template, 0, 0);
 
     drawPreviewText(context, formatDisplayDate(quote.date), 60, 665, 11);
-    drawPreviewText(context, quote.clientName, 80, 621, 12, true);
+    drawPreviewText(context, quote.clientName, 80, 619, 12, true);
 
     for (const row of pageRows) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY, firstSegment } = row;
@@ -551,7 +551,7 @@ async function generatePdf(quote) {
   for (const [pageIndex, page] of copiedPages.entries()) {
     pdfDoc.addPage(page);
     drawText(page, formatDisplayDate(quote.date), { x: 60, y: 665, size: 11, font: regularFont });
-    drawText(page, quote.clientName, { x: 80, y: 621, size: 12, font: boldFont });
+    drawText(page, quote.clientName, { x: 80, y: 619, size: 12, font: boldFont });
 
     for (const row of pageLayouts[pageIndex]) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY, firstSegment } = row;

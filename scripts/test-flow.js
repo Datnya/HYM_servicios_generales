@@ -65,7 +65,7 @@ async function main() {
         element.dispatchEvent(new Event("input", { bubbles: true }));
       };
       setValue("#quoteDate", "2026-08-22");
-      setValue("#clientName", "Cliente de Prueba");
+      setValue("#clientName", "Carla Tapa");
       setValue("#commercialConditions", "Precio no incluye IGV.\nGarantia de 1 año. Entrega de 7 a 11 dias.");
       const longDescription = "Suministro e instalacion del sistema de seguridad con configuracion completa, pruebas tecnicas, acceso remoto, capacitacion al cliente y verificacion final del servicio. ".repeat(__DESCRIPTION_REPETITIONS__).trim();
       setValue("[data-field=description]", longDescription);
