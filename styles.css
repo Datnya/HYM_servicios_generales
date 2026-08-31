@@ -249,7 +249,12 @@ textarea {
   overflow: auto;
 }
 
-#pdfPreviewCanvas {
+.pdf-preview-pages {
+  display: grid;
+  gap: 16px;
+}
+
+.pdf-preview-page {
   display: block;
   width: 100%;
   height: auto;

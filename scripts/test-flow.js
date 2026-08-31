@@ -18,6 +18,7 @@ function getJson(url) {
 
 async function main() {
   const cdpPort = process.env.CDP_PORT || "9223";
+  const descriptionRepetitions = Number(process.env.DESCRIPTION_REPETITIONS || 24);
   const tabs = await getJson(`http://127.0.0.1:${cdpPort}/json/list`);
   const page = tabs.find((entry) => entry.type === "page");
   if (!page) throw new Error("No Chrome page target found");
@@ -66,7 +67,8 @@ async function main() {
       setValue("#quoteDate", "2026-08-22");
       setValue("#clientName", "Cliente de Prueba");
       setValue("#commercialConditions", "Precio no incluye IGV.\nGarantia de 1 año. Entrega de 7 a 11 dias.");
-      setValue("[data-field=description]", "Instalacion de camaras de seguridad");
+      const longDescription = "Suministro e instalacion del sistema de seguridad con configuracion completa, pruebas tecnicas, acceso remoto, capacitacion al cliente y verificacion final del servicio. ".repeat(__DESCRIPTION_REPETITIONS__).trim();
+      setValue("[data-field=description]", longDescription);
       setValue("[data-field=quantity]", "2");
       setValue("[data-field=unitValue]", "150");
       const canvas = document.createElement("canvas");
@@ -147,6 +149,8 @@ async function main() {
         enabledBeforeClick,
         previewActive: document.querySelector("#previewView").classList.contains("active"),
         hasCanvasPreview: document.querySelector("#pdfPreviewCanvas").width > 0,
+        quotePreviewPages: document.querySelectorAll("#pdfPreviewPages .pdf-preview-page").length,
+        expectedDescriptionRepetitions: __DESCRIPTION_REPETITIONS__,
         historyBeforeActions,
         historyAfterShare: historyAfterShare.length,
         historyAfterDownload: historyAfterDownload.length,
@@ -167,7 +171,7 @@ async function main() {
         pdfBase64: btoa(binary)
       };
     })()
-  `;
+  `.replaceAll("__DESCRIPTION_REPETITIONS__", String(descriptionRepetitions));
 
   const result = await send("Runtime.evaluate", {
     expression,
