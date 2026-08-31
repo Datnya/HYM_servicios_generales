@@ -31,6 +31,7 @@ Ejemplo: mover el cliente 2 puntos hacia arriba significa cambiar `(80, 616)` po
 | Valor parcial | Área X=486 a 558 | Variable | 9 | Derecha, negrita, con prefijo `S/` | Borde real de columna: X=489.71 a 569.26 |
 | Costo total | Área X=493 a 558 | 233 | 11 máximo | Centrado, negrita, con prefijo `S/` | Casilla real: X=489.71 a 569.26; Y=215.24 a 269.53 |
 | Condiciones comerciales | 38 | 156 inicial | 9 | Izquierda, ancho máximo 500 | Cada línea baja 12 puntos |
+| Número de serie | Área X=405 a 558 | 676 | 10 | Derecha, negrita | Se muestra como `COTIZACIÓN N° 0001` y aumenta correlativamente |
 
 ### Área dinámica de los ítems
 
@@ -129,3 +130,4 @@ Resultado esperado: X=161, Y inicial=428
 | 2026-08-31 | Fecha | X=60, Y=665 | X=60, Y=662 | Bajar la fecha hasta la línea de `Lima,` |
 | 2026-08-31 | Nombre del cliente | X=80, Y=619 | X=80, Y=616 | Bajar el nombre hasta la línea de `Cliente:` |
 | 2026-08-31 | Tabla de ítems | Cuerpo fijo y páginas repetidas | Celdas y página de altura adaptable | Conservar descripciones e ítems en una sola página |
+| 2026-08-31 | Número de serie | No existía | X=405 a 558, Y=676 | Identificar cada cotización con un correlativo persistente |

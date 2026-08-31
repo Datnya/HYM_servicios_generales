@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#fedd58">
     <title>HYM Cotizaciones</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=18">
+    <link rel="stylesheet" href="styles.css?v=20">
     <script src="vendor/pdf-lib.min.js" defer></script>
-    <script src="app.js?v=18" defer></script>
+    <script src="app.js?v=20" defer></script>
   </head>
   <body>
     <main class="app-shell">
@@ -54,6 +54,18 @@
             <option value="expenses">Egresos</option>
           </select>
         </label>
+
+        <div class="manager-date-filter" aria-label="Filtrar movimientos por fecha">
+          <label>
+            <span>Desde</span>
+            <input id="managerDateFrom" type="date">
+          </label>
+          <label>
+            <span>Hasta</span>
+            <input id="managerDateTo" type="date">
+          </label>
+          <button class="small-button" id="clearManagerDatesButton" type="button">Limpiar fechas</button>
+        </div>
 
         <div id="managerList" class="history-list manager-list"></div>
 
@@ -243,5 +255,13 @@
         <div id="ticketHistoryList" class="history-list"></div>
       </section>
     </main>
+
+    <dialog id="completionDialog" aria-labelledby="completionDialogMessage">
+      <p id="completionDialogMessage"></p>
+      <div class="dialog-actions">
+        <button class="primary-action" id="completionHomeButton" type="button">Sí, volver</button>
+        <button class="secondary-action" id="completionEditButton" type="button">No, seguir editando</button>
+      </div>
+    </dialog>
   </body>
 </html>

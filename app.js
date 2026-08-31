@@ -3,6 +3,7 @@ const PREVIEW_TEMPLATE_URL = "assets/cotizacion-preview.png";
 const HISTORY_KEY = "hym_quote_history";
 const TICKET_HISTORY_KEY = "hym_ticket_history";
 const QUOTE_LAYOUT_KEY = "hym_quote_layout";
+const QUOTE_SERIAL_KEY = "hym_quote_serial_next";
 const QUOTE_LAYOUT_VERSION_KEY = "hym_quote_layout_version";
 const QUOTE_LAYOUT_VERSION = 2;
 const MAX_QUOTE_ITEMS = 50;
@@ -16,6 +17,9 @@ const TABLE_BODY_BOTTOM = 270;
 const TABLE_BASE_BODY_HEIGHT = 192;
 const TOTAL_ROW_BOTTOM = 215;
 const TABLE_COLUMNS = [72, 157, 360, 412, 490];
+const SERIAL_X = 405;
+const SERIAL_Y = 676;
+const SERIAL_WIDTH = 153;
 const TICKET_WIDTH = 900;
 const TICKET_HEIGHT = 1280;
 const DEFAULT_QUOTE_LAYOUT = Object.freeze({
@@ -34,6 +38,12 @@ const state = {
   currentTicketBlob: null,
   currentTicketUrl: "",
   layoutDraft: null,
+  editingQuoteId: null,
+  editingQuoteCreatedAt: null,
+  editingQuoteSerial: null,
+  editingTicketId: null,
+  editingTicketCreatedAt: null,
+  completionEditView: "form",
   items: []
 };
 
@@ -83,6 +93,8 @@ const managerIncome = document.getElementById("managerIncome");
 const managerExpenses = document.getElementById("managerExpenses");
 const managerBalance = document.getElementById("managerBalance");
 const managerFilter = document.getElementById("managerFilter");
+const managerDateFrom = document.getElementById("managerDateFrom");
+const managerDateTo = document.getElementById("managerDateTo");
 const managerList = document.getElementById("managerList");
 const layoutFieldSelect = document.getElementById("layoutFieldSelect");
 const layoutX = document.getElementById("layoutX");
@@ -91,6 +103,8 @@ const layoutSize = document.getElementById("layoutSize");
 const layoutEditorCanvas = document.getElementById("layoutEditorCanvas");
 const layoutEditorStage = document.getElementById("layoutEditorStage");
 const saveLayoutButton = document.getElementById("saveLayoutButton");
+const completionDialog = document.getElementById("completionDialog");
+const completionDialogMessage = document.getElementById("completionDialogMessage");
 
 function showView(name) {
   Object.values(views).forEach((view) => view.classList.remove("active"));
@@ -157,7 +171,7 @@ function quoteFileName(quote) {
     .replace(/^-|-$/g, "")
     .slice(0, 40)
     .toLowerCase();
-  return `cotizacion-hym-${safeClient || "cliente"}-${quote.date}.pdf`;
+  return `cotizacion-hym-${formatQuoteSerial(quote.serial)}-${safeClient || "cliente"}-${quote.date}.pdf`;
 }
 
 function toMoney(value) {
@@ -190,6 +204,43 @@ function readHistory() {
 
 function writeHistory(history) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
+}
+
+function formatQuoteSerial(value) {
+  const number = Math.max(1, Number.parseInt(String(value || "1"), 10) || 1);
+  return String(number).padStart(4, "0");
+}
+
+function initializeQuoteSerials() {
+  const history = readHistory();
+  const existing = history
+    .map((quote) => Number.parseInt(String(quote.serial || ""), 10))
+    .filter((serial) => Number.isFinite(serial) && serial > 0);
+  let next = existing.length ? Math.max(...existing) + 1 : 1;
+  let changed = false;
+
+  const withoutSerial = history
+    .filter((quote) => !quote.serial)
+    .sort((a, b) => String(a.createdAt || a.date).localeCompare(String(b.createdAt || b.date)));
+  withoutSerial.forEach((quote) => {
+    quote.serial = formatQuoteSerial(next);
+    next += 1;
+    changed = true;
+  });
+
+  if (changed) writeHistory(history);
+  const storedNext = Number.parseInt(localStorage.getItem(QUOTE_SERIAL_KEY) || "1", 10) || 1;
+  localStorage.setItem(QUOTE_SERIAL_KEY, String(Math.max(storedNext, next)));
+}
+
+function allocateQuoteSerial() {
+  const next = Number.parseInt(localStorage.getItem(QUOTE_SERIAL_KEY) || "1", 10) || 1;
+  localStorage.setItem(QUOTE_SERIAL_KEY, String(next + 1));
+  return formatQuoteSerial(next);
+}
+
+function quoteSerialLabel(quote) {
+  return `COTIZACIÓN N° ${formatQuoteSerial(quote.serial)}`;
 }
 
 function readTicketHistory() {
@@ -284,9 +335,11 @@ function renderItems() {
 }
 
 function collectQuote() {
+  const serial = state.editingQuoteSerial || allocateQuoteSerial();
   return {
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
+    id: state.editingQuoteId || crypto.randomUUID(),
+    createdAt: state.editingQuoteCreatedAt || new Date().toISOString(),
+    serial,
     date: quoteDate.value,
     clientName: clientName.value.trim(),
     commercialConditions: commercialConditions.value.trim(),
@@ -299,6 +352,28 @@ function collectQuote() {
     })),
     total: grandTotalValue()
   };
+}
+
+function loadQuoteIntoForm(quote) {
+  quoteDate.value = quote.date;
+  clientName.value = quote.clientName || "";
+  commercialConditions.value = quote.commercialConditions || "";
+  state.items = (quote.items || []).map((item) => ({
+    ...item,
+    id: item.id || crypto.randomUUID()
+  }));
+  state.editingQuoteId = quote.id;
+  state.editingQuoteCreatedAt = quote.createdAt;
+  state.editingQuoteSerial = quote.serial || allocateQuoteSerial();
+  if (!state.items.length) createItem();
+  else renderItems();
+  validateForm();
+}
+
+function rememberQuoteEditingContext(quote) {
+  state.editingQuoteId = quote.id;
+  state.editingQuoteCreatedAt = quote.createdAt;
+  state.editingQuoteSerial = quote.serial;
 }
 
 function wrapText(text, font, size, maxWidth) {
@@ -583,6 +658,15 @@ async function renderQuotePreview(quote, options = {}) {
 
   drawPreviewText(context, formatDisplayDate(quote.date), layout.date.x, layout.date.y + tableLayout.extraHeight, layout.date.size);
   drawPreviewText(context, quote.clientName, layout.client.x, layout.client.y + tableLayout.extraHeight, layout.client.size, true);
+  drawPreviewRight(
+    context,
+    quoteSerialLabel(quote),
+    SERIAL_X,
+    SERIAL_Y + tableLayout.extraHeight,
+    SERIAL_WIDTH,
+    10,
+    true
+  );
 
   for (const row of tableLayout.rows) {
     const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
@@ -787,6 +871,15 @@ async function generatePdf(quote) {
     y: layout.client.y + tableLayout.extraHeight,
     font: boldFont
   });
+  drawRight(
+    page,
+    quoteSerialLabel(quote),
+    SERIAL_X,
+    SERIAL_Y + tableLayout.extraHeight,
+    SERIAL_WIDTH,
+    10,
+    boldFont
+  );
 
   for (const row of tableLayout.rows) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
@@ -847,6 +940,7 @@ function saveQuoteToHistory(quote) {
   const history = readHistory().filter((entry) => entry.id !== quote.id);
   history.unshift({
     id: quote.id,
+    serial: quote.serial,
     date: quote.date,
     clientName: quote.clientName,
     commercialConditions: quote.commercialConditions || "",
@@ -871,7 +965,7 @@ function renderHistory() {
     item.className = "history-item";
     item.innerHTML = `
       <div class="quote-line">
-        <strong>${escapeHtml(quote.clientName)}</strong>
+        <strong>N° ${formatQuoteSerial(quote.serial)} - ${escapeHtml(quote.clientName)}</strong>
         <span>${formatCurrency(quote.total)}</span>
       </div>
       <div>${formatDisplayDate(quote.date)}</div>
@@ -893,6 +987,7 @@ function deleteQuoteFromHistory(id) {
 async function openHistoryQuote(id) {
   const quote = readHistory().find((entry) => entry.id === id);
   if (!quote) return;
+  loadQuoteIntoForm(quote);
   const bytes = await generatePdf(quote);
   setPdfPreview(bytes, quote);
   showView("preview");
@@ -943,8 +1038,8 @@ function collectTicket() {
   const paidAmount = Number(ticketPaidAmount.value || 0);
   const totalAmount = isAdvance ? Number(ticketTotalAmount.value || 0) : paidAmount;
   return {
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
+    id: state.editingTicketId || crypto.randomUUID(),
+    createdAt: state.editingTicketCreatedAt || new Date().toISOString(),
     date: ticketDate.value,
     clientName: ticketClientName.value.trim(),
     movementType: isExpense ? "expense" : "income",
@@ -955,6 +1050,25 @@ function collectTicket() {
     totalAmount,
     pendingAmount: isAdvance ? Math.max(0, totalAmount - paidAmount) : 0
   };
+}
+
+function loadTicketIntoForm(ticket) {
+  ticketMovementType.value = ticket.movementType === "expense" || ticket.type === "expense" ? "expense" : "income";
+  ticketDate.value = ticket.date;
+  ticketClientName.value = ticket.clientName || "";
+  ticketType.value = ticket.type === "full" ? "full" : "advance";
+  ticketServiceDescription.value = ticket.serviceDescription || "";
+  ticketDetails.value = ticket.details || "";
+  ticketTotalAmount.value = ticket.totalAmount || "";
+  ticketPaidAmount.value = ticket.paidAmount || "";
+  state.editingTicketId = ticket.id;
+  state.editingTicketCreatedAt = ticket.createdAt;
+  validateTicketForm();
+}
+
+function rememberTicketEditingContext(ticket) {
+  state.editingTicketId = ticket.id;
+  state.editingTicketCreatedAt = ticket.createdAt;
 }
 
 function ticketTypeLabel(ticket) {
@@ -1080,7 +1194,7 @@ function renderTicketHistory() {
   history.forEach((ticket) => {
     const isExpense = ticket.movementType === "expense" || ticket.type === "expense";
     const item = document.createElement("article");
-    item.className = "history-item";
+    item.className = `history-item${isExpense ? " expense-entry" : ""}`;
     item.innerHTML = `
       <div class="quote-line">
         <strong>${escapeHtml(ticket.clientName)}</strong>
@@ -1104,7 +1218,7 @@ function managerTransactions() {
     date: quote.date,
     createdAt: quote.createdAt,
     name: quote.clientName,
-    description: "Cotización",
+    description: `Cotización N° ${formatQuoteSerial(quote.serial)}`,
     amount: Number(quote.total || 0)
   }));
   const tickets = readTicketHistory().map((ticket) => {
@@ -1127,10 +1241,18 @@ function managerTransactions() {
 
 function renderManager() {
   const transactions = managerTransactions();
-  const income = transactions
+  const sourceFiltered = managerFilter.value === "all"
+    ? transactions
+    : transactions.filter((entry) => entry.source === managerFilter.value);
+  const filtered = sourceFiltered.filter((entry) => {
+    if (managerDateFrom.value && entry.date < managerDateFrom.value) return false;
+    if (managerDateTo.value && entry.date > managerDateTo.value) return false;
+    return true;
+  });
+  const income = filtered
     .filter((entry) => entry.movementType === "income")
     .reduce((total, entry) => total + entry.amount, 0);
-  const expenses = transactions
+  const expenses = filtered
     .filter((entry) => entry.movementType === "expense")
     .reduce((total, entry) => total + entry.amount, 0);
 
@@ -1138,9 +1260,6 @@ function renderManager() {
   managerExpenses.textContent = formatCurrency(expenses);
   managerBalance.textContent = formatCurrency(income - expenses);
 
-  const filtered = managerFilter.value === "all"
-    ? transactions
-    : transactions.filter((entry) => entry.source === managerFilter.value);
   managerList.innerHTML = "";
   if (!filtered.length) {
     managerList.innerHTML = `<div class="empty-state">No hay movimientos en este filtro.</div>`;
@@ -1149,7 +1268,7 @@ function renderManager() {
 
   filtered.forEach((entry) => {
     const item = document.createElement("article");
-    item.className = "history-item";
+    item.className = `history-item${entry.movementType === "expense" ? " expense-entry" : ""}`;
     item.innerHTML = `
       <div class="quote-line">
         <strong>${escapeHtml(entry.name)}</strong>
@@ -1157,6 +1276,7 @@ function renderManager() {
       </div>
       <div class="movement-kind">${entry.movementType === "expense" ? "Egreso" : entry.source === "quotes" ? "Ingreso - Cotización" : "Ingreso - Ticket"}</div>
       <div>${formatDisplayDate(entry.date)} - ${escapeHtml(entry.description || "Sin descripción")}</div>
+      <button class="small-button manager-preview-action" type="button" data-manager-preview="${entry.id}" data-manager-source="${entry.source}">Previsualizar</button>
     `;
     managerList.appendChild(item);
   });
@@ -1171,11 +1291,26 @@ function deleteTicketFromHistory(id) {
 async function openTicketFromHistory(id) {
   const ticket = readTicketHistory().find((entry) => entry.id === id);
   if (!ticket) return;
+  loadTicketIntoForm(ticket);
   await renderTicketPreview(ticket);
   showView("ticketPreview");
 }
 
-function downloadCurrentTicket() {
+function showCompletionDialog(documentType, action, editView) {
+  const label = documentType === "quote" ? "Cotización" : "Ticket";
+  const actionLabel = documentType === "quote"
+    ? action === "shared" ? "compartida" : "descargada"
+    : action === "shared" ? "compartido" : "descargado";
+  state.completionEditView = editView;
+  completionDialogMessage.textContent = `${label} ${actionLabel}. ¿Volver al inicio?`;
+  if (typeof completionDialog.showModal === "function") {
+    completionDialog.showModal();
+    return;
+  }
+  showView(window.confirm(completionDialogMessage.textContent) ? "home" : editView);
+}
+
+function downloadCurrentTicket(options = {}) {
   if (!state.currentTicket || !state.currentTicketUrl) return;
   saveTicketToHistory(state.currentTicket);
   renderTicketHistory();
@@ -1186,6 +1321,7 @@ function downloadCurrentTicket() {
   document.body.appendChild(link);
   link.click();
   link.remove();
+  if (options.showConfirmation !== false) showCompletionDialog("ticket", "downloaded", "ticketForm");
 }
 
 async function shareCurrentTicket() {
@@ -1202,10 +1338,11 @@ async function shareCurrentTicket() {
     saveTicketToHistory(state.currentTicket);
     renderTicketHistory();
     renderManager();
+    showCompletionDialog("ticket", "shared", "ticketForm");
     return;
   }
-  downloadCurrentTicket();
-  alert("Tu navegador no permite compartir la imagen directamente. Se descargó el JPG para que puedas enviarlo por WhatsApp.");
+  downloadCurrentTicket({ showConfirmation: false });
+  showCompletionDialog("ticket", "downloaded", "ticketForm");
 }
 
 function resetTicketForm() {
@@ -1217,10 +1354,13 @@ function resetTicketForm() {
   ticketDetails.value = "";
   ticketTotalAmount.value = "";
   ticketPaidAmount.value = "";
+  state.editingTicketId = null;
+  state.editingTicketCreatedAt = null;
+  state.currentTicket = null;
   validateTicketForm();
 }
 
-function downloadCurrentPdf() {
+function downloadCurrentPdf(options = {}) {
   if (!state.currentPdfUrl || !state.currentQuote) return;
   saveQuoteToHistory(state.currentQuote);
   renderHistory();
@@ -1231,6 +1371,7 @@ function downloadCurrentPdf() {
   document.body.appendChild(link);
   link.click();
   link.remove();
+  if (options.showConfirmation !== false) showCompletionDialog("quote", "downloaded", "form");
 }
 
 async function shareCurrentPdf() {
@@ -1248,17 +1389,22 @@ async function shareCurrentPdf() {
     saveQuoteToHistory(state.currentQuote);
     renderHistory();
     renderManager();
+    showCompletionDialog("quote", "shared", "form");
     return;
   }
 
-  downloadCurrentPdf();
-  alert("Tu navegador no permite compartir archivos directamente. Se descargó el PDF para que puedas enviarlo por WhatsApp.");
+  downloadCurrentPdf({ showConfirmation: false });
+  showCompletionDialog("quote", "downloaded", "form");
 }
 
 function resetForm() {
   quoteDate.value = todayValue();
   clientName.value = "";
   commercialConditions.value = "";
+  state.editingQuoteId = null;
+  state.editingQuoteCreatedAt = null;
+  state.editingQuoteSerial = null;
+  state.currentQuote = null;
   state.items = [];
   createItem();
 }
@@ -1401,6 +1547,7 @@ ticketForm.addEventListener("submit", async (event) => {
   ticketContinueButton.textContent = "Generando...";
   try {
     const ticket = collectTicket();
+    rememberTicketEditingContext(ticket);
     await renderTicketPreview(ticket);
     showView("ticketPreview");
   } finally {
@@ -1410,10 +1557,28 @@ ticketForm.addEventListener("submit", async (event) => {
 });
 
 managerFilter.addEventListener("change", renderManager);
+managerDateFrom.addEventListener("change", renderManager);
+managerDateTo.addEventListener("change", renderManager);
+document.getElementById("clearManagerDatesButton").addEventListener("click", () => {
+  managerDateFrom.value = "";
+  managerDateTo.value = "";
+  renderManager();
+});
 
-document.getElementById("downloadTicketButton").addEventListener("click", downloadCurrentTicket);
-document.getElementById("shareTicketButton").addEventListener("click", () => {
-  shareCurrentTicket().catch(() => downloadCurrentTicket());
+managerList.addEventListener("click", (event) => {
+  const id = event.target.dataset.managerPreview;
+  if (!id) return;
+  if (event.target.dataset.managerSource === "quotes") openHistoryQuote(id);
+  else openTicketFromHistory(id);
+});
+
+document.getElementById("downloadTicketButton").addEventListener("click", () => downloadCurrentTicket());
+document.getElementById("shareTicketButton").addEventListener("click", async () => {
+  try {
+    await shareCurrentTicket();
+  } catch (error) {
+    if (error?.name !== "AbortError") alert("No se pudo compartir el ticket. Inténtalo nuevamente.");
+  }
 });
 
 ticketHistoryList.addEventListener("click", (event) => {
@@ -1436,6 +1601,7 @@ form.addEventListener("submit", async (event) => {
   continueButton.textContent = "Generando...";
   try {
     const quote = collectQuote();
+    rememberQuoteEditingContext(quote);
     const bytes = await generatePdf(quote);
     setPdfPreview(bytes, quote);
     showView("preview");
@@ -1445,9 +1611,23 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-document.getElementById("downloadButton").addEventListener("click", downloadCurrentPdf);
-shareButton.addEventListener("click", () => {
-  shareCurrentPdf().catch(() => downloadCurrentPdf());
+document.getElementById("downloadButton").addEventListener("click", () => downloadCurrentPdf());
+shareButton.addEventListener("click", async () => {
+  try {
+    await shareCurrentPdf();
+  } catch (error) {
+    if (error?.name !== "AbortError") alert("No se pudo compartir la cotización. Inténtalo nuevamente.");
+  }
+});
+
+document.getElementById("completionHomeButton").addEventListener("click", () => {
+  completionDialog.close();
+  showView("home");
+});
+
+document.getElementById("completionEditButton").addEventListener("click", () => {
+  completionDialog.close();
+  showView(state.completionEditView);
 });
 
 historyList.addEventListener("click", (event) => {
@@ -1469,4 +1649,5 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+initializeQuoteSerials();
 resetForm();

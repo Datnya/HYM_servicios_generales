@@ -135,6 +135,10 @@ form,
   font-size: 20px;
 }
 
+#managerExpenses {
+  color: #c62828;
+}
+
 .summary-balance {
   grid-column: 1 / -1;
   border-bottom: 0;
@@ -143,6 +147,17 @@ form,
 
 .manager-filter {
   margin-bottom: 16px;
+}
+
+.manager-date-filter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.manager-date-filter .small-button {
+  grid-column: 1 / -1;
 }
 
 .manager-list {
@@ -240,6 +255,19 @@ textarea {
 
 .history-actions .small-button {
   width: 100%;
+}
+
+.manager-preview-action {
+  margin-top: 2px;
+}
+
+.expense-entry {
+  border-color: #c62828;
+}
+
+.expense-entry .quote-line span,
+.expense-entry .movement-kind {
+  color: #c62828;
 }
 
 .quote-item,
@@ -384,6 +412,36 @@ textarea {
 .quote-line strong,
 .quote-line span {
   display: block;
+}
+
+dialog {
+  width: min(520px, calc(100% - 32px));
+  padding: 22px;
+  border: 3px solid var(--black);
+  background: var(--white);
+  color: var(--black);
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+#completionDialogMessage {
+  margin-bottom: 20px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.dialog-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.dialog-actions .primary-action,
+.dialog-actions .secondary-action {
+  min-height: 50px;
+  font-size: 16px;
 }
 
 @media (min-width: 720px) {
