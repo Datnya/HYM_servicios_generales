@@ -6,7 +6,7 @@ Las posiciones de fecha, cliente, descripción, total y condiciones también pue
 
 ## Sistema de coordenadas
 
-- Tamaño de página: **595.50 × 842.25 puntos** (A4).
+- Ancho de página: **595.50 puntos**. La altura mínima es **842.25 puntos** y aumenta cuando la tabla necesita más espacio.
 - Origen PDF `(0, 0)`: esquina **inferior izquierda**.
 - `X` aumenta hacia la derecha.
 - `Y` aumenta hacia arriba.
@@ -15,35 +15,36 @@ Las posiciones de fecha, cliente, descripción, total y condiciones también pue
 - Las posiciones del software representan la línea base del texto, no su borde superior.
 - Conversión desde una coordenada medida desde arriba: `Y PDF = 842.25 - Y superior`.
 
-Ejemplo: mover el cliente 2 puntos hacia arriba significa cambiar `(80, 619)` por `(80, 621)`.
+Ejemplo: mover el cliente 2 puntos hacia arriba significa cambiar `(80, 616)` por `(80, 618)`.
 
 ## Datos variables agregados por el software
 
 | Dato | X | Y | Tamaño | Alineación o límite | Observación |
 |---|---:|---:|---:|---|---|
-| Fecha | 60 | 665 | 11 | Izquierda | Se escribe a la derecha de `Lima,` |
-| Nombre del cliente | 80 | 619 | 12 | Izquierda, negrita | Se escribe a la derecha de `Cliente:` |
+| Fecha | 60 | 662 | 11 | Izquierda | Se escribe a la derecha de `Lima,` y 3 puntos más abajo que la versión anterior |
+| Nombre del cliente | 80 | 616 | 12 | Izquierda, negrita | Se escribe a la derecha de `Cliente:` y 3 puntos más abajo que la versión anterior |
 | Número de ítem | 46 | 450 inicial | 10 | Izquierda, negrita | `Y` cambia según la altura de cada ítem |
 | Centro de imagen | 115 | Depende del ítem | - | Máximo 70 × 44 | La imagen queda centrada alrededor del `Y` del ítem |
-| Descripción | 164 | 450 inicial | 9 | Izquierda, ancho máximo 190 | Divide el texto en líneas y continúa en páginas adicionales |
+| Descripción | 164 | 450 inicial | 9 | Izquierda, ancho máximo 190 | Divide el texto en líneas y amplía la celda hacia abajo |
 | Cantidad | Área X=360 a 405 | 450 inicial | 10 | Derecha | Borde real de columna: X=359.54 a 412.69 |
-| Valor unitario | Área X=420 a 476 | 450 inicial | 10 | Derecha | Borde real de columna: X=412.69 a 489.71 |
-| Valor parcial | Área X=493 a 558 | 450 inicial | 10 | Derecha, negrita | Borde real de columna: X=489.71 a 569.26 |
-| Costo total | Área X=493 a 558 | 233 | 13 | Centrado, negrita | Casilla real: X=489.71 a 569.26; Y=215.24 a 269.53 |
+| Valor unitario | Área X=414 a 476 | Variable | 9 | Derecha, con prefijo `S/` | Borde real de columna: X=412.69 a 489.71 |
+| Valor parcial | Área X=486 a 558 | Variable | 9 | Derecha, negrita, con prefijo `S/` | Borde real de columna: X=489.71 a 569.26 |
+| Costo total | Área X=493 a 558 | 233 | 11 máximo | Centrado, negrita, con prefijo `S/` | Casilla real: X=489.71 a 569.26; Y=215.24 a 269.53 |
 | Condiciones comerciales | 38 | 156 inicial | 9 | Izquierda, ancho máximo 500 | Cada línea baja 12 puntos |
 
 ### Área dinámica de los ítems
 
 - Primera línea base: `Y=450`.
-- Altura disponible administrada por el software: `192 puntos`.
+- Altura mínima administrada por el software: `192 puntos`.
 - Límite visual superior del cuerpo de la tabla: `Y=469.38`.
 - Límite visual inferior del cuerpo de la tabla: `Y=269.53`.
 - Altura mínima asignada por ítem: `24 puntos`.
 - Separación de líneas de descripción: tamaño de letra + `2 puntos`.
 - El tamaño de la descripción se mantiene en `9` para conservar la legibilidad.
-- Cuando una descripción supera el espacio disponible, continúa en una página nueva sin eliminar líneas.
-- La cantidad, el valor unitario, el valor parcial y la imagen se dibujan en el primer segmento del ítem.
-- El costo total y las condiciones comerciales se dibujan en la última página.
+- Cuando el contenido supera los `192 puntos`, la página y las celdas crecen hacia abajo.
+- Cada ítem conserva una fila propia; la altura de esa fila depende de su descripción o imagen.
+- El costo total y las condiciones comerciales se desplazan hacia abajo después de todos los ítems.
+- La cotización permanece en una sola página de altura adaptable, con un máximo de 50 ítems.
 
 ## Límites exactos de la tabla
 
@@ -125,3 +126,6 @@ Resultado esperado: X=161, Y inicial=428
 | 2026-08-30 | Descripción | Y inicial 430, tamaño adaptable | Y inicial 450, tamaño 9 y paginación | Evitar cualquier pérdida de texto |
 | 2026-08-30 | Nombre del cliente | X=80, Y=621 | X=80, Y=619 | Alinear visualmente con `Cliente:` |
 | 2026-08-30 | Coordenadas variables | Valores fijos en código | Editor visual y almacenamiento local | Permitir ajuste manual en tiempo real |
+| 2026-08-31 | Fecha | X=60, Y=665 | X=60, Y=662 | Bajar la fecha hasta la línea de `Lima,` |
+| 2026-08-31 | Nombre del cliente | X=80, Y=619 | X=80, Y=616 | Bajar el nombre hasta la línea de `Cliente:` |
+| 2026-08-31 | Tabla de ítems | Cuerpo fijo y páginas repetidas | Celdas y página de altura adaptable | Conservar descripciones e ítems en una sola página |
