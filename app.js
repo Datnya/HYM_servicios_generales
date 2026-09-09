@@ -53,6 +53,7 @@ const state = {
   editingTicketId: null,
   editingTicketCreatedAt: null,
   completionEditView: "form",
+  pendingDeletion: null,
   items: []
 };
 
@@ -115,6 +116,8 @@ const layoutEditorStage = document.getElementById("layoutEditorStage");
 const saveLayoutButton = document.getElementById("saveLayoutButton");
 const completionDialog = document.getElementById("completionDialog");
 const completionDialogMessage = document.getElementById("completionDialogMessage");
+const deleteConfirmationDialog = document.getElementById("deleteConfirmationDialog");
+const deleteConfirmationMessage = document.getElementById("deleteConfirmationMessage");
 
 function showView(name) {
   Object.values(views).forEach((view) => view.classList.remove("active"));
@@ -345,6 +348,14 @@ function renderItems() {
     `;
     itemsList.appendChild(wrapper);
   });
+  if (state.items.length < MAX_QUOTE_ITEMS) {
+    const addButton = document.createElement("button");
+    addButton.className = "add-item-button";
+    addButton.type = "button";
+    addButton.dataset.addItem = "true";
+    addButton.textContent = "Agregar un nuevo ítem";
+    itemsList.appendChild(addButton);
+  }
   validateForm();
 }
 
@@ -588,20 +599,7 @@ function drawPreviewLine(context, x1, y1, x2, y2) {
   context.stroke();
 }
 
-function drawDynamicPreviewStructure(context, tableLayout) {
-  const bodyTop = TABLE_HEADER_BOTTOM + tableLayout.extraHeight;
-  drawPreviewRectangle(context, 0, 0, PDF_PAGE_WIDTH, bodyTop, "#ffffff", null);
-  drawPreviewRectangle(context, TABLE_LEFT, TABLE_BODY_BOTTOM, TABLE_RIGHT - TABLE_LEFT, bodyTop - TABLE_BODY_BOTTOM, "#ffffff");
-  TABLE_COLUMNS.forEach((x) => drawPreviewLine(context, x, TABLE_BODY_BOTTOM, x, bodyTop));
-  tableLayout.rows.forEach((row) => drawPreviewLine(context, TABLE_LEFT, row.rowBottom, TABLE_RIGHT, row.rowBottom));
-  drawPreviewRectangle(context, TABLE_LEFT, TOTAL_ROW_BOTTOM, 490 - TABLE_LEFT, TABLE_BODY_BOTTOM - TOTAL_ROW_BOTTOM, "#d9d9d9");
-  drawPreviewRectangle(context, 490, TOTAL_ROW_BOTTOM, TABLE_RIGHT - 490, TABLE_BODY_BOTTOM - TOTAL_ROW_BOTTOM, "#ffffff");
-  drawPreviewText(context, "COSTO TOTAL", 405, 240, 11, true);
-  drawPreviewText(context, "CONDICIONES COMERCIALES", 38, 178, 13, true);
-  drawPreviewRectangle(context, 0, 0, PDF_PAGE_WIDTH, 13, "#fedd58", null);
-}
-
-function createItemTableLayout(items, wrapDescription, options = {}) {
+function createPaginatedItemLayout(items, wrapDescription, conditionLines, options = {}) {
   const fontSize = Number(options.fontSize || 9);
   const lineHeight = fontSize + 2;
   const rows = [];
@@ -618,23 +616,66 @@ function createItemTableLayout(items, wrapDescription, options = {}) {
     });
   });
 
-  const contentHeight = rows.reduce((total, row) => total + row.height, 0);
-  const bodyHeight = Math.max(TABLE_BASE_BODY_HEIGHT, contentHeight + 8);
-  const extraHeight = bodyHeight - TABLE_BASE_BODY_HEIGHT;
-  let rowTop = Number(options.startY || 450) + extraHeight + fontSize + 7;
-  const positionedRows = rows.map((row) => {
-    const rowY = rowTop - row.fontSize - 7;
-    const positionedRow = { ...row, rowTop, rowY, rowBottom: rowTop - row.height };
-    rowTop -= row.height;
-    return positionedRow;
-  });
+  const conditionHeight = conditionLines.length * (Number(options.conditionSize || 9) + 3);
+  const finalCapacity = Math.max(54, TABLE_HEADER_BOTTOM - 30 - 55 - 30 - 18 - conditionHeight);
+  const regularCapacity = TABLE_HEADER_BOTTOM - 42;
+  let splitIndex = rows.length;
+  let usedFinalHeight = 0;
+  while (splitIndex > 0) {
+    const candidate = rows[splitIndex - 1];
+    if (usedFinalHeight + candidate.height > finalCapacity && splitIndex < rows.length) break;
+    usedFinalHeight += candidate.height;
+    splitIndex -= 1;
+  }
 
-  return {
-    rows: positionedRows,
-    bodyHeight,
-    extraHeight,
-    pageHeight: PDF_PAGE_HEIGHT + extraHeight
-  };
+  const pages = [];
+  let remaining = rows.slice(0, splitIndex);
+  while (remaining.length) {
+    const pageRows = [];
+    let usedHeight = 0;
+    while (remaining.length && (usedHeight + remaining[0].height <= regularCapacity || !pageRows.length)) {
+      const row = remaining.shift();
+      pageRows.push(row);
+      usedHeight += row.height;
+    }
+    pages.push({ rows: pageRows, isLast: false });
+  }
+  pages.push({ rows: rows.slice(splitIndex), isLast: true });
+
+  return pages.map((pageLayout) => {
+    let rowTop = TABLE_HEADER_BOTTOM;
+    const positionedRows = pageLayout.rows.map((row) => {
+      const rowY = rowTop - row.fontSize - 7;
+      const positionedRow = { ...row, rowTop, rowY, rowBottom: rowTop - row.height };
+      rowTop -= row.height;
+      return positionedRow;
+    });
+    const totalTop = rowTop;
+    const totalBottom = totalTop - 55;
+    return {
+      ...pageLayout,
+      rows: positionedRows,
+      bodyBottom: pageLayout.isLast ? totalTop : rowTop,
+      totalTop,
+      totalBottom,
+      conditionHeaderY: totalBottom - 30,
+      conditionStartY: totalBottom - 52,
+      conditionLines
+    };
+  });
+}
+
+function drawPreviewTableStructure(context, pageLayout) {
+  drawPreviewRectangle(context, 0, 0, PDF_PAGE_WIDTH, TABLE_HEADER_BOTTOM, "#ffffff", null);
+  drawPreviewRectangle(context, TABLE_LEFT, pageLayout.bodyBottom, TABLE_RIGHT - TABLE_LEFT, TABLE_HEADER_BOTTOM - pageLayout.bodyBottom, "#ffffff");
+  TABLE_COLUMNS.forEach((x) => drawPreviewLine(context, x, pageLayout.bodyBottom, x, TABLE_HEADER_BOTTOM));
+  pageLayout.rows.forEach((row) => drawPreviewLine(context, TABLE_LEFT, row.rowBottom, TABLE_RIGHT, row.rowBottom));
+  if (!pageLayout.isLast) return;
+  drawPreviewRectangle(context, TABLE_LEFT, pageLayout.totalBottom, 490 - TABLE_LEFT, pageLayout.totalTop - pageLayout.totalBottom, "#d9d9d9");
+  drawPreviewRectangle(context, 490, pageLayout.totalBottom, TABLE_RIGHT - 490, pageLayout.totalTop - pageLayout.totalBottom, "#ffffff");
+  drawPreviewText(context, "COSTO TOTAL", 405, pageLayout.totalBottom + 22, 11, true);
+  drawPreviewText(context, "CONDICIONES COMERCIALES", 38, pageLayout.conditionHeaderY, 13, true);
+  drawPreviewRectangle(context, 0, 0, PDF_PAGE_WIDTH, 13, "#fedd58", null);
 }
 
 function wrapCanvasTextPreservingBreaks(context, text, size, maxWidth) {
@@ -655,100 +696,61 @@ async function renderQuotePreview(quote, options = {}) {
   measurementCanvas.width = template.naturalWidth;
   measurementCanvas.height = template.naturalHeight;
   const measurementContext = measurementCanvas.getContext("2d");
-  const tableLayout = createItemTableLayout(
+  const conditionLines = quote.commercialConditions
+    ? wrapCanvasTextPreservingBreaks(measurementContext, quote.commercialConditions, layout.conditions.size, 500)
+    : [];
+  const pageLayouts = createPaginatedItemLayout(
     quote.items,
     (description, size) => wrapCanvasText(measurementContext, description, size, 190),
-    { fontSize: layout.description.size, startY: layout.description.y }
+    conditionLines,
+    { fontSize: layout.description.size, conditionSize: layout.conditions.size }
   );
 
   pagesElement.innerHTML = "";
-  pagesElement.appendChild(primaryCanvas);
   const scale = template.naturalWidth / PDF_PAGE_WIDTH;
-  primaryCanvas.className = "pdf-preview-page";
-  primaryCanvas.width = template.naturalWidth;
-  primaryCanvas.height = Math.round(tableLayout.pageHeight * scale);
-  const context = primaryCanvas.getContext("2d");
-  context.__pdfPageHeight = tableLayout.pageHeight;
-  context.drawImage(template, 0, 0, template.naturalWidth, template.naturalHeight);
-  drawDynamicPreviewStructure(context, tableLayout);
+  const visiblePages = pageLayouts.slice(0, options.maxPages || pageLayouts.length);
+  for (const [pageIndex, pageLayout] of visiblePages.entries()) {
+    const canvas = pageIndex === 0 ? primaryCanvas : document.createElement("canvas");
+    canvas.className = "pdf-preview-page";
+    canvas.width = template.naturalWidth;
+    canvas.height = Math.round(PDF_PAGE_HEIGHT * scale);
+    pagesElement.appendChild(canvas);
+    const context = canvas.getContext("2d");
+    context.__pdfPageHeight = PDF_PAGE_HEIGHT;
+    context.drawImage(template, 0, 0, template.naturalWidth, template.naturalHeight);
+    drawPreviewTableStructure(context, pageLayout);
 
-  drawPreviewText(context, formatDisplayDate(quote.date), layout.date.x, layout.date.y + tableLayout.extraHeight, layout.date.size);
-  drawPreviewText(context, quote.clientName, layout.client.x, layout.client.y + tableLayout.extraHeight, layout.client.size, true);
-  drawPreviewRight(
-    context,
-    quoteSerialLabel(quote),
-    SERIAL_X,
-    SERIAL_Y + tableLayout.extraHeight,
-    SERIAL_WIDTH,
-    10,
-    true
-  );
-  drawPreviewText(
-    context,
-    quoteDocumentTitle(quote),
-    DOCUMENT_TITLE_X,
-    DOCUMENT_TITLE_Y + tableLayout.extraHeight,
-    DOCUMENT_TITLE_SIZE,
-    true
-  );
-
-  for (const row of tableLayout.rows) {
-    const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
-    drawPreviewText(context, String(itemIndex + 1), 46, rowY, 10, true);
-
-    if (item.imageDataUrl) {
-      try {
-        const image = await loadImage(item.imageDataUrl);
-        const size = fitInside(image.naturalWidth, image.naturalHeight, 70, 44);
-        const imageX = 115 - size.width / 2;
-        const imageY = row.rowTop - 5 - size.height;
-        context.drawImage(
-          image,
-          imageX * scale,
-          (tableLayout.pageHeight - imageY - size.height) * scale,
-          size.width * scale,
-          size.height * scale
-        );
-      } catch {
-        drawPreviewText(context, "Imagen no disponible", 76, rowY, 7);
-      }
+    if (pageIndex === 0) {
+      drawPreviewText(context, formatDisplayDate(quote.date), layout.date.x, layout.date.y, layout.date.size);
+      drawPreviewText(context, quote.clientName, layout.client.x, layout.client.y, layout.client.size, true);
+      drawPreviewRight(context, quoteSerialLabel(quote), SERIAL_X, SERIAL_Y, SERIAL_WIDTH, 10, true);
+      drawPreviewText(context, quoteDocumentTitle(quote), DOCUMENT_TITLE_X, DOCUMENT_TITLE_Y, DOCUMENT_TITLE_SIZE, true);
     }
 
-    lines.forEach((line, lineIndex) => {
-      drawPreviewText(context, line, layout.description.x, rowY - lineIndex * lineHeight, fontSize);
-    });
-    drawPreviewRight(context, item.quantity, 360, rowY, 45, 10);
-    drawPreviewRight(context, formatCurrency(item.unitValue), 414, rowY, 62, 9);
-    drawPreviewRight(context, formatCurrency(item.total), 486, rowY, 72, 9, true);
-  }
+    for (const row of pageLayout.rows) {
+      const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
+      drawPreviewText(context, String(itemIndex + 1), 46, rowY, 10, true);
+      if (item.imageDataUrl) {
+        try {
+          const image = await loadImage(item.imageDataUrl);
+          const size = fitInside(image.naturalWidth, image.naturalHeight, 70, 44);
+          context.drawImage(image, (115 - size.width / 2) * scale, (PDF_PAGE_HEIGHT - row.rowTop + 5) * scale, size.width * scale, size.height * scale);
+        } catch {
+          drawPreviewText(context, "Imagen no disponible", 76, rowY, 7);
+        }
+      }
+      lines.forEach((line, lineIndex) => drawPreviewText(context, line, layout.description.x, rowY - lineIndex * lineHeight, fontSize));
+      drawPreviewRight(context, item.quantity, 360, rowY, 45, 10);
+      drawPreviewRight(context, formatCurrency(item.unitValue), 414, rowY, 62, 9);
+      drawPreviewRight(context, formatCurrency(item.total), 486, rowY, 72, 9, true);
+    }
 
-  drawPreviewCenter(context, formatCurrency(quote.total), layout.total.x, layout.total.y, 65, Math.min(layout.total.size, 11), true);
-
-  if (quote.commercialConditions) {
-    wrapCanvasTextPreservingBreaks(context, quote.commercialConditions, layout.conditions.size, 500).forEach((line, lineIndex) => {
-      if (line) drawPreviewText(context, line, layout.conditions.x, layout.conditions.y - lineIndex * (layout.conditions.size + 3), layout.conditions.size);
-    });
-  }
-
-  if (options.selectedField) {
-    const selected = layout[options.selectedField];
-    const anchoredToTop = ["date", "client", "description"].includes(options.selectedField);
-    const selectedY = selected.y + (anchoredToTop ? tableLayout.extraHeight : 0);
-    const markerX = selected.x * scale;
-    const markerY = (tableLayout.pageHeight - selectedY) * scale;
-    context.strokeStyle = "#fedd58";
-    context.lineWidth = 8;
-    context.beginPath();
-    context.arc(markerX, markerY, 16, 0, Math.PI * 2);
-    context.stroke();
-    context.strokeStyle = "#000000";
-    context.lineWidth = 2;
-    context.beginPath();
-    context.moveTo(markerX - 22, markerY);
-    context.lineTo(markerX + 22, markerY);
-    context.moveTo(markerX, markerY - 22);
-    context.lineTo(markerX, markerY + 22);
-    context.stroke();
+    if (pageLayout.isLast) {
+      drawPreviewCenter(context, formatCurrency(quote.total), 490, pageLayout.totalBottom + 22, 80, Math.min(layout.total.size, 11), true);
+      pageLayout.conditionLines.forEach((line, lineIndex) => {
+        if (line) drawPreviewText(context, line, layout.conditions.x, pageLayout.conditionStartY - lineIndex * (layout.conditions.size + 3), layout.conditions.size);
+      });
+    }
   }
 }
 
@@ -803,63 +805,41 @@ function moveSelectedLayoutField(event) {
   queueLayoutEditorRender();
 }
 
-function drawDynamicPdfStructure(page, tableLayout, boldFont) {
-  const bodyTop = TABLE_HEADER_BOTTOM + tableLayout.extraHeight;
+function drawPdfTableStructure(page, pageLayout, boldFont) {
   page.drawRectangle({
     x: 0,
     y: 0,
     width: PDF_PAGE_WIDTH,
-    height: bodyTop,
+    height: TABLE_HEADER_BOTTOM,
     color: PDFLib.rgb(1, 1, 1)
   });
   page.drawRectangle({
     x: TABLE_LEFT,
-    y: TABLE_BODY_BOTTOM,
+    y: pageLayout.bodyBottom,
     width: TABLE_RIGHT - TABLE_LEFT,
-    height: bodyTop - TABLE_BODY_BOTTOM,
+    height: TABLE_HEADER_BOTTOM - pageLayout.bodyBottom,
     color: PDFLib.rgb(1, 1, 1),
     borderColor: PDFLib.rgb(0, 0, 0),
     borderWidth: 0.8
   });
   TABLE_COLUMNS.forEach((x) => page.drawLine({
-    start: { x, y: TABLE_BODY_BOTTOM },
-    end: { x, y: bodyTop },
+    start: { x, y: pageLayout.bodyBottom },
+    end: { x, y: TABLE_HEADER_BOTTOM },
     color: PDFLib.rgb(0, 0, 0),
     thickness: 0.8
   }));
-  tableLayout.rows.forEach((row) => page.drawLine({
+  pageLayout.rows.forEach((row) => page.drawLine({
     start: { x: TABLE_LEFT, y: row.rowBottom },
     end: { x: TABLE_RIGHT, y: row.rowBottom },
     color: PDFLib.rgb(0, 0, 0),
     thickness: 0.8
   }));
-  page.drawRectangle({
-    x: TABLE_LEFT,
-    y: TOTAL_ROW_BOTTOM,
-    width: 490 - TABLE_LEFT,
-    height: TABLE_BODY_BOTTOM - TOTAL_ROW_BOTTOM,
-    color: PDFLib.rgb(0.85, 0.85, 0.85),
-    borderColor: PDFLib.rgb(0, 0, 0),
-    borderWidth: 0.8
-  });
-  page.drawRectangle({
-    x: 490,
-    y: TOTAL_ROW_BOTTOM,
-    width: TABLE_RIGHT - 490,
-    height: TABLE_BODY_BOTTOM - TOTAL_ROW_BOTTOM,
-    color: PDFLib.rgb(1, 1, 1),
-    borderColor: PDFLib.rgb(0, 0, 0),
-    borderWidth: 0.8
-  });
-  drawText(page, "COSTO TOTAL", { x: 405, y: 240, size: 11, font: boldFont });
-  drawText(page, "CONDICIONES COMERCIALES", { x: 38, y: 178, size: 13, font: boldFont });
-  page.drawRectangle({
-    x: 0,
-    y: 0,
-    width: PDF_PAGE_WIDTH,
-    height: 13,
-    color: PDFLib.rgb(0.996, 0.867, 0.345)
-  });
+  if (!pageLayout.isLast) return;
+  page.drawRectangle({ x: TABLE_LEFT, y: pageLayout.totalBottom, width: 490 - TABLE_LEFT, height: pageLayout.totalTop - pageLayout.totalBottom, color: PDFLib.rgb(0.85, 0.85, 0.85), borderColor: PDFLib.rgb(0, 0, 0), borderWidth: 0.8 });
+  page.drawRectangle({ x: 490, y: pageLayout.totalBottom, width: TABLE_RIGHT - 490, height: pageLayout.totalTop - pageLayout.totalBottom, color: PDFLib.rgb(1, 1, 1), borderColor: PDFLib.rgb(0, 0, 0), borderWidth: 0.8 });
+  drawText(page, "COSTO TOTAL", { x: 405, y: pageLayout.totalBottom + 22, size: 11, font: boldFont });
+  drawText(page, "CONDICIONES COMERCIALES", { x: 38, y: pageLayout.conditionHeaderY, size: 13, font: boldFont });
+  page.drawRectangle({ x: 0, y: 0, width: PDF_PAGE_WIDTH, height: 13, color: PDFLib.rgb(0.996, 0.867, 0.345) });
 }
 
 async function generatePdf(quote) {
@@ -870,52 +850,29 @@ async function generatePdf(quote) {
   const regularFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
 
-  const tableLayout = createItemTableLayout(
+  const conditionLines = quote.commercialConditions
+    ? wrapTextPreservingBreaks(quote.commercialConditions, regularFont, layout.conditions.size, 500)
+    : [];
+  const pageLayouts = createPaginatedItemLayout(
     quote.items,
     (description, size) => wrapText(description, regularFont, size, 190),
-    { fontSize: layout.description.size, startY: layout.description.y }
+    conditionLines,
+    { fontSize: layout.description.size, conditionSize: layout.conditions.size }
   );
 
   const templatePage = await pdfDoc.embedPage(templateDoc.getPage(0));
-  const page = pdfDoc.addPage([PDF_PAGE_WIDTH, tableLayout.pageHeight]);
-  page.drawPage(templatePage, {
-    x: 0,
-    y: tableLayout.extraHeight,
-    width: PDF_PAGE_WIDTH,
-    height: PDF_PAGE_HEIGHT
-  });
-  drawDynamicPdfStructure(page, tableLayout, boldFont);
-  drawText(page, formatDisplayDate(quote.date), {
-    ...layout.date,
-    y: layout.date.y + tableLayout.extraHeight,
-    font: regularFont
-  });
-  drawText(page, quote.clientName, {
-    ...layout.client,
-    y: layout.client.y + tableLayout.extraHeight,
-    font: boldFont
-  });
-  drawRight(
-    page,
-    quoteSerialLabel(quote),
-    SERIAL_X,
-    SERIAL_Y + tableLayout.extraHeight,
-    SERIAL_WIDTH,
-    10,
-    boldFont
-  );
-  drawText(
-    page,
-    quoteDocumentTitle(quote),
-    {
-      x: DOCUMENT_TITLE_X,
-      y: DOCUMENT_TITLE_Y + tableLayout.extraHeight,
-      size: DOCUMENT_TITLE_SIZE,
-      font: boldFont
+  for (const [pageIndex, pageLayout] of pageLayouts.entries()) {
+    const page = pdfDoc.addPage([PDF_PAGE_WIDTH, PDF_PAGE_HEIGHT]);
+    page.drawPage(templatePage, { x: 0, y: 0, width: PDF_PAGE_WIDTH, height: PDF_PAGE_HEIGHT });
+    drawPdfTableStructure(page, pageLayout, boldFont);
+    if (pageIndex === 0) {
+      drawText(page, formatDisplayDate(quote.date), { ...layout.date, font: regularFont });
+      drawText(page, quote.clientName, { ...layout.client, font: boldFont });
+      drawRight(page, quoteSerialLabel(quote), SERIAL_X, SERIAL_Y, SERIAL_WIDTH, 10, boldFont);
+      drawText(page, quoteDocumentTitle(quote), { x: DOCUMENT_TITLE_X, y: DOCUMENT_TITLE_Y, size: DOCUMENT_TITLE_SIZE, font: boldFont });
     }
-  );
 
-  for (const row of tableLayout.rows) {
+    for (const row of pageLayout.rows) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
       drawText(page, String(itemIndex + 1), { x: 46, y: rowY, size: 10, font: boldFont });
       if (item.imageDataUrl) {
@@ -943,20 +900,20 @@ async function generatePdf(quote) {
       drawRight(page, item.quantity, 360, rowY, 45, 10, regularFont);
       drawRight(page, formatCurrency(item.unitValue), 414, rowY, 62, 9, regularFont);
       drawRight(page, formatCurrency(item.total), 486, rowY, 72, 9, boldFont);
-  }
+    }
 
-  drawCenter(page, formatCurrency(quote.total), layout.total.x, layout.total.y, 65, Math.min(layout.total.size, 11), boldFont);
-
-  if (quote.commercialConditions) {
-      wrapTextPreservingBreaks(quote.commercialConditions, regularFont, layout.conditions.size, 500).forEach((line, lineIndex) => {
+    if (pageLayout.isLast) {
+      drawCenter(page, formatCurrency(quote.total), 490, pageLayout.totalBottom + 22, 80, Math.min(layout.total.size, 11), boldFont);
+      pageLayout.conditionLines.forEach((line, lineIndex) => {
         if (!line) return;
         drawText(page, line, {
           x: layout.conditions.x,
-          y: layout.conditions.y - lineIndex * (layout.conditions.size + 3),
+          y: pageLayout.conditionStartY - lineIndex * (layout.conditions.size + 3),
           size: layout.conditions.size,
           font: regularFont
         });
       });
+    }
   }
   return pdfDoc.save();
 }
@@ -1313,6 +1270,18 @@ function deleteTicketFromHistory(id) {
   renderManager();
 }
 
+function requestDeletion(kind, id) {
+  state.pendingDeletion = { kind, id };
+  deleteConfirmationMessage.textContent = kind === "ticket"
+    ? "¿Estás seguro que deseas eliminar este ticket? Se eliminará completamente de este dispositivo."
+    : "¿Estás seguro que deseas eliminar este documento? Se eliminará completamente de este dispositivo.";
+  if (typeof deleteConfirmationDialog.showModal === "function") {
+    deleteConfirmationDialog.showModal();
+  } else {
+    deleteConfirmationDialog.setAttribute("open", "");
+  }
+}
+
 async function openTicketFromHistory(id) {
   const ticket = readTicketHistory().find((entry) => entry.id === id);
   if (!ticket) return;
@@ -1460,8 +1429,6 @@ document.getElementById("managerTicketHistoryButton").addEventListener("click", 
   showView("ticketHistory");
 });
 
-document.getElementById("openLayoutEditorButton").addEventListener("click", openLayoutEditor);
-
 layoutFieldSelect.addEventListener("change", () => {
   syncLayoutControls();
   queueLayoutEditorRender();
@@ -1513,14 +1480,6 @@ document.querySelectorAll("[data-action]").forEach((button) => {
   button.addEventListener("click", () => showView(button.dataset.action));
 });
 
-document.getElementById("addItemButton").addEventListener("click", () => {
-  if (state.items.length >= MAX_QUOTE_ITEMS) {
-    alert(`La cotización permite hasta ${MAX_QUOTE_ITEMS} ítems.`);
-    return;
-  }
-  createItem();
-});
-
 itemsList.addEventListener("input", (event) => {
   if (event.target.matches("[data-image-input]")) return;
   const wrapper = event.target.closest(".quote-item");
@@ -1545,6 +1504,10 @@ itemsList.addEventListener("change", async (event) => {
 });
 
 itemsList.addEventListener("click", (event) => {
+  if (event.target.dataset.addItem) {
+    createItem();
+    return;
+  }
   const id = event.target.dataset.remove;
   if (!id) return;
   state.items = state.items.filter((item) => item.id !== id);
@@ -1615,7 +1578,7 @@ ticketHistoryList.addEventListener("click", (event) => {
   }
 
   const deleteId = event.target.dataset.deleteTicket;
-  if (deleteId) deleteTicketFromHistory(deleteId);
+  if (deleteId) requestDeletion("ticket", deleteId);
 });
 
 form.addEventListener("submit", async (event) => {
@@ -1656,6 +1619,20 @@ document.getElementById("completionEditButton").addEventListener("click", () => 
   showView(state.completionEditView);
 });
 
+document.getElementById("confirmDeleteButton").addEventListener("click", () => {
+  const pending = state.pendingDeletion;
+  state.pendingDeletion = null;
+  deleteConfirmationDialog.close();
+  if (!pending) return;
+  if (pending.kind === "ticket") deleteTicketFromHistory(pending.id);
+  else deleteQuoteFromHistory(pending.id);
+});
+
+document.getElementById("cancelDeleteButton").addEventListener("click", () => {
+  state.pendingDeletion = null;
+  deleteConfirmationDialog.close();
+});
+
 historyList.addEventListener("click", (event) => {
   const openId = event.target.dataset.openHistory;
   if (openId) {
@@ -1664,7 +1641,7 @@ historyList.addEventListener("click", (event) => {
   }
 
   const deleteId = event.target.dataset.deleteHistory;
-  if (deleteId) deleteQuoteFromHistory(deleteId);
+  if (deleteId) requestDeletion("document", deleteId);
 });
 
 if ("serviceWorker" in navigator) {

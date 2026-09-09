@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#fedd58">
     <title>HYM Cotizaciones</title>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=24">
+    <link rel="stylesheet" href="styles.css?v=25">
     <script src="vendor/pdf-lib.min.js" defer></script>
-    <script src="app.js?v=24" defer></script>
+    <script src="app.js?v=25" defer></script>
   </head>
   <body>
     <main class="app-shell">
@@ -103,7 +103,6 @@
 
           <div class="items-heading">
             <h3>Servicios o productos</h3>
-            <button class="small-button" id="addItemButton" type="button">Agregar</button>
           </div>
 
           <div id="itemsList" class="items-list"></div>
@@ -129,7 +128,6 @@
           <div class="preview-actions">
             <button class="small-button" id="downloadButton" type="button">Descargar PDF</button>
             <button class="small-button" id="shareButton" type="button">Compartir</button>
-            <button class="small-button" id="openLayoutEditorButton" type="button">Ajustar texto</button>
           </div>
         </header>
         <div class="pdf-preview-scroll" aria-label="Previsualización de cotización">
@@ -270,6 +268,14 @@
       <div class="dialog-actions">
         <button class="primary-action" id="completionHomeButton" type="button">Sí, volver</button>
         <button class="secondary-action" id="completionEditButton" type="button">No, seguir editando</button>
+      </div>
+    </dialog>
+
+    <dialog id="deleteConfirmationDialog" aria-labelledby="deleteConfirmationMessage">
+      <p id="deleteConfirmationMessage"></p>
+      <div class="dialog-actions">
+        <button class="destructive-action" id="confirmDeleteButton" type="button">Sí, eliminar</button>
+        <button class="secondary-action" id="cancelDeleteButton" type="button">Cancelar</button>
       </div>
     </dialog>
   </body>

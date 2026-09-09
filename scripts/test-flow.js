@@ -94,21 +94,6 @@ async function main() {
         if (ready) break;
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      document.querySelector("#openLayoutEditorButton").click();
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      document.querySelector("#layoutFieldSelect").value = "client";
-      document.querySelector("#layoutFieldSelect").dispatchEvent(new Event("change", { bubbles: true }));
-      const editorRect = document.querySelector("#layoutEditorCanvas").getBoundingClientRect();
-      moveSelectedLayoutField({
-        clientX: editorRect.left + (90 / PDF_PAGE_WIDTH) * editorRect.width,
-        clientY: editorRect.top + ((PDF_PAGE_HEIGHT - 617) / PDF_PAGE_HEIGHT) * editorRect.height
-      });
-      const editorDraftPosition = { ...state.layoutDraft.client };
-      document.querySelector("#saveLayoutButton").click();
-      for (let i = 0; i < 80 && !document.querySelector("#previewView").classList.contains("active"); i += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      const savedLayoutPosition = readQuoteLayout().client;
       localStorage.removeItem("hym_quote_history");
       const historyBeforeActions = JSON.parse(localStorage.getItem("hym_quote_history") || "[]").length;
       Object.defineProperty(navigator, "canShare", {
@@ -214,8 +199,6 @@ async function main() {
         expectedDescriptionRepetitions: __DESCRIPTION_REPETITIONS__,
         quoteDocumentType: state.currentQuote?.documentType,
         savedDocumentType,
-        editorDraftPosition,
-        savedLayoutPosition,
         historyBeforeActions,
         historyAfterShare: historyAfterShare.length,
         historyAfterDownload: historyAfterDownload.length,
