@@ -1,9 +1,9 @@
-const CACHE_NAME = "hym-cotizaciones-v23";
+const CACHE_NAME = "hym-cotizaciones-v24";
 const ASSETS = [
   "/",
   "/index.html",
-  "/styles.css?v=23",
-  "/app.js?v=23",
+  "/styles.css?v=24",
+  "/app.js?v=24",
   "/manifest.webmanifest",
   "/assets/cotizacion-hym.pdf",
   "/assets/cotizacion-preview.png",

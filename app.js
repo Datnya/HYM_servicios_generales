@@ -20,10 +20,9 @@ const TABLE_COLUMNS = [72, 157, 360, 412, 490];
 const SERIAL_X = 405;
 const SERIAL_Y = 676;
 const SERIAL_WIDTH = 153;
-const DOCUMENT_TITLE_X = 60;
-const DOCUMENT_TITLE_Y = 680;
-const DOCUMENT_TITLE_WIDTH = 330;
-const DOCUMENT_TITLE_SIZE = 9.5;
+const DOCUMENT_TITLE_X = 26;
+const DOCUMENT_TITLE_Y = 637;
+const DOCUMENT_TITLE_SIZE = 14;
 const DOCUMENT_TYPES = Object.freeze({
   allCost: "COTIZACION A TODO COSTO",
   laborOnly: "COTIZACION SOLO MANO DE OBRA",
@@ -684,12 +683,11 @@ async function renderQuotePreview(quote, options = {}) {
     10,
     true
   );
-  drawPreviewCenter(
+  drawPreviewText(
     context,
     quoteDocumentTitle(quote),
     DOCUMENT_TITLE_X,
     DOCUMENT_TITLE_Y + tableLayout.extraHeight,
-    DOCUMENT_TITLE_WIDTH,
     DOCUMENT_TITLE_SIZE,
     true
   );
@@ -906,14 +904,15 @@ async function generatePdf(quote) {
     10,
     boldFont
   );
-  drawCenter(
+  drawText(
     page,
     quoteDocumentTitle(quote),
-    DOCUMENT_TITLE_X,
-    DOCUMENT_TITLE_Y + tableLayout.extraHeight,
-    DOCUMENT_TITLE_WIDTH,
-    DOCUMENT_TITLE_SIZE,
-    boldFont
+    {
+      x: DOCUMENT_TITLE_X,
+      y: DOCUMENT_TITLE_Y + tableLayout.extraHeight,
+      size: DOCUMENT_TITLE_SIZE,
+      font: boldFont
+    }
   );
 
   for (const row of tableLayout.rows) {
