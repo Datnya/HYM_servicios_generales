@@ -119,9 +119,14 @@ const completionDialogMessage = document.getElementById("completionDialogMessage
 const deleteConfirmationDialog = document.getElementById("deleteConfirmationDialog");
 const deleteConfirmationMessage = document.getElementById("deleteConfirmationMessage");
 
-function showView(name) {
+function showView(name, options = {}) {
+  const { fromHistory = false } = options;
+  if (!views[name]) return;
   Object.values(views).forEach((view) => view.classList.remove("active"));
   views[name].classList.add("active");
+  if (!fromHistory && window.history.state?.view !== name) {
+    window.history.pushState({ view: name }, "", window.location.href);
+  }
 }
 
 function cloneQuoteLayout(layout = DEFAULT_QUOTE_LAYOUT) {
@@ -1349,6 +1354,14 @@ async function shareCurrentTicket() {
   showCompletionDialog("ticket", "downloaded", "ticketForm");
 }
 
+function saveCurrentTicket() {
+  if (!state.currentTicket) return;
+  saveTicketToHistory(state.currentTicket);
+  renderTicketHistory();
+  renderManager();
+  showCompletionDialog("ticket", "saved", "ticketForm");
+}
+
 function resetTicketForm() {
   ticketMovementType.value = "income";
   ticketDate.value = todayValue();
@@ -1586,6 +1599,7 @@ managerList.addEventListener("click", (event) => {
 });
 
 document.getElementById("downloadTicketButton").addEventListener("click", () => downloadCurrentTicket());
+document.getElementById("saveTicketButton").addEventListener("click", saveCurrentTicket);
 document.getElementById("shareTicketButton").addEventListener("click", async () => {
   try {
     await shareCurrentTicket();
@@ -1691,3 +1705,13 @@ if ("serviceWorker" in navigator) {
 
 initializeQuoteSerials();
 resetForm();
+
+window.history.replaceState({ view: "home" }, "", window.location.href);
+window.history.pushState({ view: "home", protected: true }, "", window.location.href);
+window.addEventListener("popstate", (event) => {
+  const view = event.state?.view || "home";
+  showView(view, { fromHistory: true });
+  if (view === "home") {
+    window.history.pushState({ view: "home", protected: true }, "", window.location.href);
+  }
+});
