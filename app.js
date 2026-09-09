@@ -1300,9 +1300,11 @@ function editTicketFromHistory(id) {
 
 function showCompletionDialog(documentType, action, editView) {
   const label = documentType === "quote" ? "Documento" : "Ticket";
-  const actionLabel = documentType === "quote"
-    ? action === "shared" ? "compartido" : "descargado"
-    : action === "shared" ? "compartido" : "descargado";
+  const actionLabel = action === "shared"
+    ? "compartido"
+    : action === "saved"
+      ? "guardado"
+      : "descargado";
   state.completionEditView = editView;
   completionDialogMessage.textContent = `${label} ${actionLabel}. ¿Volver al inicio?`;
   if (typeof completionDialog.showModal === "function") {
@@ -1374,6 +1376,14 @@ function downloadCurrentPdf(options = {}) {
   link.click();
   link.remove();
   if (options.showConfirmation !== false) showCompletionDialog("quote", "downloaded", "form");
+}
+
+function saveCurrentQuote() {
+  if (!state.currentQuote) return;
+  saveQuoteToHistory(state.currentQuote);
+  renderHistory();
+  renderManager();
+  showCompletionDialog("quote", "saved", "form");
 }
 
 async function shareCurrentPdf() {
@@ -1621,6 +1631,7 @@ form.addEventListener("submit", async (event) => {
 });
 
 document.getElementById("downloadButton").addEventListener("click", () => downloadCurrentPdf());
+document.getElementById("saveDocumentButton").addEventListener("click", saveCurrentQuote);
 shareButton.addEventListener("click", async () => {
   try {
     await shareCurrentPdf();
