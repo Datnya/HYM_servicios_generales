@@ -1684,7 +1684,7 @@ historyList.addEventListener("click", (event) => {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/sw-v5.js", { scope: "/", updateViaCache: "none" })
+      .register("./sw-v5.js", { updateViaCache: "none" })
       .then((registration) => registration.update());
   });
 }

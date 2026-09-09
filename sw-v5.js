@@ -1,14 +1,14 @@
-const CACHE_NAME = "hym-cotizaciones-v28";
+const CACHE_NAME = "hym-cotizaciones-v29";
 const ASSETS = [
-  "/",
-  "/index.html",
-  "/styles.css?v=28",
-  "/app.js?v=28",
-  "/manifest.webmanifest",
-  "/assets/cotizacion-hym.pdf",
-  "/assets/cotizacion-preview.png",
-  "/assets/logo-hym.png",
-  "/vendor/pdf-lib.min.js"
+  "./",
+  "./index.html",
+  "./styles.css?v=28",
+  "./app.js?v=28",
+  "./manifest.webmanifest",
+  "./assets/cotizacion-hym.pdf",
+  "./assets/cotizacion-preview.png",
+  "./assets/logo-hym.png",
+  "./vendor/pdf-lib.min.js"
 ];
 
 self.addEventListener("install", (event) => {
@@ -30,7 +30,7 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match("/index.html"))
+      fetch(event.request).catch(() => caches.match("./index.html"))
     );
     return;
   }
