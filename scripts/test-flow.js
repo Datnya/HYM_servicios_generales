@@ -65,6 +65,8 @@ async function main() {
         element.value = value;
         element.dispatchEvent(new Event("input", { bubbles: true }));
       };
+      document.querySelector("#quoteDocumentType").value = "workReport";
+      document.querySelector("#quoteDocumentType").dispatchEvent(new Event("change", { bubbles: true }));
       setValue("#quoteDate", "2026-08-22");
       setValue("#clientName", "Carla Tapa");
       setValue("#commercialConditions", "Precio no incluye IGV.\nGarantia de 1 año. Entrega de 7 a 11 dias.");
@@ -121,6 +123,7 @@ async function main() {
       });
       await shareCurrentPdf();
       const historyAfterShare = JSON.parse(localStorage.getItem("hym_quote_history") || "[]");
+      const savedDocumentType = historyAfterShare[0]?.documentType;
       localStorage.removeItem("hym_quote_history");
       downloadCurrentPdf();
       const historyAfterDownload = JSON.parse(localStorage.getItem("hym_quote_history") || "[]");
@@ -185,9 +188,6 @@ async function main() {
         balance: document.querySelector("#managerBalance").textContent
       };
       const managerAllItems = document.querySelectorAll("#managerList .history-item").length;
-      document.querySelector("#managerFilter").value = "quotes";
-      renderManager();
-      const managerQuoteItems = document.querySelectorAll("#managerList .history-item").length;
       document.querySelector("#managerFilter").value = "tickets";
       renderManager();
       const managerIncomeTicketItems = document.querySelectorAll("#managerList .history-item").length;
@@ -212,6 +212,8 @@ async function main() {
         hasCanvasPreview: document.querySelector("#pdfPreviewCanvas").width > 0,
         quotePreviewPages: document.querySelectorAll("#pdfPreviewPages .pdf-preview-page").length,
         expectedDescriptionRepetitions: __DESCRIPTION_REPETITIONS__,
+        quoteDocumentType: state.currentQuote?.documentType,
+        savedDocumentType,
         editorDraftPosition,
         savedLayoutPosition,
         historyBeforeActions,
@@ -236,7 +238,6 @@ async function main() {
         expenseTicketAmount: expenseTicket?.paidAmount,
         managerTotals,
         managerAllItems,
-        managerQuoteItems,
         managerIncomeTicketItems,
         managerExpenseItems,
         expenseDeletedFromHistory,

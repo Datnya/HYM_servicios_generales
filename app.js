@@ -20,6 +20,16 @@ const TABLE_COLUMNS = [72, 157, 360, 412, 490];
 const SERIAL_X = 405;
 const SERIAL_Y = 676;
 const SERIAL_WIDTH = 153;
+const DOCUMENT_TITLE_X = 60;
+const DOCUMENT_TITLE_Y = 680;
+const DOCUMENT_TITLE_WIDTH = 330;
+const DOCUMENT_TITLE_SIZE = 9.5;
+const DOCUMENT_TYPES = Object.freeze({
+  allCost: "COTIZACION A TODO COSTO",
+  laborOnly: "COTIZACION SOLO MANO DE OBRA",
+  contract: "CONTRATO",
+  workReport: "REPORTE DEL TRABAJO REALIZADO"
+});
 const TICKET_WIDTH = 900;
 const TICKET_HEIGHT = 1280;
 const DEFAULT_QUOTE_LAYOUT = Object.freeze({
@@ -60,6 +70,7 @@ const views = {
 };
 
 const form = document.getElementById("quoteForm");
+const quoteDocumentType = document.getElementById("quoteDocumentType");
 const quoteDate = document.getElementById("quoteDate");
 const clientName = document.getElementById("clientName");
 const commercialConditions = document.getElementById("commercialConditions");
@@ -240,7 +251,11 @@ function allocateQuoteSerial() {
 }
 
 function quoteSerialLabel(quote) {
-  return `COTIZACIÓN N° ${formatQuoteSerial(quote.serial)}`;
+  return `N° ${formatQuoteSerial(quote.serial)}`;
+}
+
+function quoteDocumentTitle(quote) {
+  return DOCUMENT_TYPES[quote.documentType] || DOCUMENT_TYPES.allCost;
 }
 
 function readTicketHistory() {
@@ -340,6 +355,7 @@ function collectQuote() {
     id: state.editingQuoteId || crypto.randomUUID(),
     createdAt: state.editingQuoteCreatedAt || new Date().toISOString(),
     serial,
+    documentType: quoteDocumentType.value,
     date: quoteDate.value,
     clientName: clientName.value.trim(),
     commercialConditions: commercialConditions.value.trim(),
@@ -355,6 +371,7 @@ function collectQuote() {
 }
 
 function loadQuoteIntoForm(quote) {
+  quoteDocumentType.value = DOCUMENT_TYPES[quote.documentType] ? quote.documentType : "allCost";
   quoteDate.value = quote.date;
   clientName.value = quote.clientName || "";
   commercialConditions.value = quote.commercialConditions || "";
@@ -667,6 +684,15 @@ async function renderQuotePreview(quote, options = {}) {
     10,
     true
   );
+  drawPreviewCenter(
+    context,
+    quoteDocumentTitle(quote),
+    DOCUMENT_TITLE_X,
+    DOCUMENT_TITLE_Y + tableLayout.extraHeight,
+    DOCUMENT_TITLE_WIDTH,
+    DOCUMENT_TITLE_SIZE,
+    true
+  );
 
   for (const row of tableLayout.rows) {
     const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
@@ -880,6 +906,15 @@ async function generatePdf(quote) {
     10,
     boldFont
   );
+  drawCenter(
+    page,
+    quoteDocumentTitle(quote),
+    DOCUMENT_TITLE_X,
+    DOCUMENT_TITLE_Y + tableLayout.extraHeight,
+    DOCUMENT_TITLE_WIDTH,
+    DOCUMENT_TITLE_SIZE,
+    boldFont
+  );
 
   for (const row of tableLayout.rows) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
@@ -941,6 +976,7 @@ function saveQuoteToHistory(quote) {
   history.unshift({
     id: quote.id,
     serial: quote.serial,
+    documentType: quote.documentType || "allCost",
     date: quote.date,
     clientName: quote.clientName,
     commercialConditions: quote.commercialConditions || "",
@@ -956,7 +992,7 @@ function renderHistory() {
   historyList.innerHTML = "";
 
   if (!history.length) {
-    historyList.innerHTML = `<div class="empty-state">Aún no hay cotizaciones guardadas.</div>`;
+    historyList.innerHTML = `<div class="empty-state">Aún no hay documentos guardados.</div>`;
     return;
   }
 
@@ -965,10 +1001,10 @@ function renderHistory() {
     item.className = "history-item";
     item.innerHTML = `
       <div class="quote-line">
-        <strong>N° ${formatQuoteSerial(quote.serial)} - ${escapeHtml(quote.clientName)}</strong>
+        <strong>${escapeHtml(quoteDocumentTitle(quote))} N° ${formatQuoteSerial(quote.serial)}</strong>
         <span>${formatCurrency(quote.total)}</span>
       </div>
-      <div>${formatDisplayDate(quote.date)}</div>
+      <div>${escapeHtml(quote.clientName)} - ${formatDisplayDate(quote.date)}</div>
       <div class="history-actions">
         <button class="small-button" type="button" data-open-history="${quote.id}">Ver PDF</button>
         <button class="small-button" type="button" data-delete-history="${quote.id}">Borrar</button>
@@ -1211,16 +1247,6 @@ function renderTicketHistory() {
 }
 
 function managerTransactions() {
-  const quotes = readHistory().map((quote) => ({
-    id: quote.id,
-    source: "quotes",
-    movementType: "income",
-    date: quote.date,
-    createdAt: quote.createdAt,
-    name: quote.clientName,
-    description: `Cotización N° ${formatQuoteSerial(quote.serial)}`,
-    amount: Number(quote.total || 0)
-  }));
   const tickets = readTicketHistory().map((ticket) => {
     const movementType = ticket.movementType === "expense" || ticket.type === "expense" ? "expense" : "income";
     return {
@@ -1234,7 +1260,7 @@ function managerTransactions() {
       amount: Number(ticket.paidAmount || 0)
     };
   });
-  return [...quotes, ...tickets].sort((a, b) =>
+  return tickets.sort((a, b) =>
     String(b.createdAt || b.date).localeCompare(String(a.createdAt || a.date))
   );
 }
@@ -1274,7 +1300,7 @@ function renderManager() {
         <strong>${escapeHtml(entry.name)}</strong>
         <span>${entry.movementType === "expense" ? "-" : "+"}${formatCurrency(entry.amount)}</span>
       </div>
-      <div class="movement-kind">${entry.movementType === "expense" ? "Egreso" : entry.source === "quotes" ? "Ingreso - Cotización" : "Ingreso - Ticket"}</div>
+      <div class="movement-kind">${entry.movementType === "expense" ? "Egreso" : "Ingreso - Ticket"}</div>
       <div>${formatDisplayDate(entry.date)} - ${escapeHtml(entry.description || "Sin descripción")}</div>
       <button class="small-button manager-preview-action" type="button" data-manager-preview="${entry.id}" data-manager-source="${entry.source}">Previsualizar</button>
     `;
@@ -1297,9 +1323,9 @@ async function openTicketFromHistory(id) {
 }
 
 function showCompletionDialog(documentType, action, editView) {
-  const label = documentType === "quote" ? "Cotización" : "Ticket";
+  const label = documentType === "quote" ? "Documento" : "Ticket";
   const actionLabel = documentType === "quote"
-    ? action === "shared" ? "compartida" : "descargada"
+    ? action === "shared" ? "compartido" : "descargado"
     : action === "shared" ? "compartido" : "descargado";
   state.completionEditView = editView;
   completionDialogMessage.textContent = `${label} ${actionLabel}. ¿Volver al inicio?`;
@@ -1382,8 +1408,8 @@ async function shareCurrentPdf() {
 
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     await navigator.share({
-      title: "Cotización HYM",
-      text: `Cotización para ${state.currentQuote.clientName}`,
+      title: "Documento HYM",
+      text: `${quoteDocumentTitle(state.currentQuote)} para ${state.currentQuote.clientName}`,
       files: [file]
     });
     saveQuoteToHistory(state.currentQuote);
@@ -1398,6 +1424,7 @@ async function shareCurrentPdf() {
 }
 
 function resetForm() {
+  quoteDocumentType.value = "allCost";
   quoteDate.value = todayValue();
   clientName.value = "";
   commercialConditions.value = "";
@@ -1527,6 +1554,7 @@ itemsList.addEventListener("click", (event) => {
 });
 
 quoteDate.addEventListener("input", validateForm);
+quoteDocumentType.addEventListener("change", validateForm);
 clientName.addEventListener("input", validateForm);
 
 ticketDate.addEventListener("input", validateTicketForm);
@@ -1568,8 +1596,7 @@ document.getElementById("clearManagerDatesButton").addEventListener("click", () 
 managerList.addEventListener("click", (event) => {
   const id = event.target.dataset.managerPreview;
   if (!id) return;
-  if (event.target.dataset.managerSource === "quotes") openHistoryQuote(id);
-  else openTicketFromHistory(id);
+  openTicketFromHistory(id);
 });
 
 document.getElementById("downloadTicketButton").addEventListener("click", () => downloadCurrentTicket());
