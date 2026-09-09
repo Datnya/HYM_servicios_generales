@@ -198,6 +198,10 @@ function formatCurrency(value) {
   return `S/ ${toMoney(value)}`;
 }
 
+function uppercaseClientName(value) {
+  return String(value || "").toLocaleUpperCase("es-PE");
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -367,7 +371,7 @@ function collectQuote() {
     serial,
     documentType: quoteDocumentType.value,
     date: quoteDate.value,
-    clientName: clientName.value.trim(),
+    clientName: uppercaseClientName(clientName.value.trim()),
     commercialConditions: commercialConditions.value.trim(),
     items: state.items.map((item) => ({
       description: item.description.trim(),
@@ -383,7 +387,7 @@ function collectQuote() {
 function loadQuoteIntoForm(quote) {
   quoteDocumentType.value = DOCUMENT_TYPES[quote.documentType] ? quote.documentType : "allCost";
   quoteDate.value = quote.date;
-  clientName.value = quote.clientName || "";
+  clientName.value = uppercaseClientName(quote.clientName);
   commercialConditions.value = quote.commercialConditions || "";
   state.items = (quote.items || []).map((item) => ({
     ...item,
@@ -618,29 +622,21 @@ function createPaginatedItemLayout(items, wrapDescription, conditionLines, optio
 
   const conditionHeight = conditionLines.length * (Number(options.conditionSize || 9) + 3);
   const finalCapacity = Math.max(54, TABLE_HEADER_BOTTOM - 30 - 55 - 30 - 18 - conditionHeight);
-  const regularCapacity = TABLE_HEADER_BOTTOM - 42;
-  let splitIndex = rows.length;
-  let usedFinalHeight = 0;
-  while (splitIndex > 0) {
-    const candidate = rows[splitIndex - 1];
-    if (usedFinalHeight + candidate.height > finalCapacity && splitIndex < rows.length) break;
-    usedFinalHeight += candidate.height;
-    splitIndex -= 1;
-  }
-
   const pages = [];
-  let remaining = rows.slice(0, splitIndex);
-  while (remaining.length) {
+  const regularCapacity = TABLE_HEADER_BOTTOM - 16;
+  const totalHeight = (entries) => entries.reduce((total, row) => total + row.height, 0);
+  const remaining = rows.slice();
+  while (remaining.length > 1 && totalHeight(remaining) > finalCapacity) {
     const pageRows = [];
     let usedHeight = 0;
-    while (remaining.length && (usedHeight + remaining[0].height <= regularCapacity || !pageRows.length)) {
+    while (remaining.length > 1 && (usedHeight + remaining[0].height <= regularCapacity || !pageRows.length)) {
       const row = remaining.shift();
       pageRows.push(row);
       usedHeight += row.height;
     }
     pages.push({ rows: pageRows, isLast: false });
   }
-  pages.push({ rows: rows.slice(splitIndex), isLast: true });
+  pages.push({ rows: remaining, isLast: true });
 
   return pages.map((pageLayout) => {
     let rowTop = TABLE_HEADER_BOTTOM;
@@ -721,7 +717,7 @@ async function renderQuotePreview(quote, options = {}) {
     drawPreviewTableStructure(context, pageLayout);
 
     drawPreviewText(context, formatDisplayDate(quote.date), layout.date.x, layout.date.y, layout.date.size);
-    drawPreviewText(context, quote.clientName, layout.client.x, layout.client.y, layout.client.size, true);
+    drawPreviewText(context, uppercaseClientName(quote.clientName), layout.client.x, layout.client.y, layout.client.size, true);
     drawPreviewRight(context, quoteSerialLabel(quote), SERIAL_X, SERIAL_Y, SERIAL_WIDTH, 10, true);
     drawPreviewText(context, quoteDocumentTitle(quote), DOCUMENT_TITLE_X, DOCUMENT_TITLE_Y, DOCUMENT_TITLE_SIZE, true);
 
@@ -864,7 +860,7 @@ async function generatePdf(quote) {
     page.drawPage(templatePage, { x: 0, y: 0, width: PDF_PAGE_WIDTH, height: PDF_PAGE_HEIGHT });
     drawPdfTableStructure(page, pageLayout, boldFont);
     drawText(page, formatDisplayDate(quote.date), { ...layout.date, font: regularFont });
-    drawText(page, quote.clientName, { ...layout.client, font: boldFont });
+    drawText(page, uppercaseClientName(quote.clientName), { ...layout.client, font: boldFont });
     drawRight(page, quoteSerialLabel(quote), SERIAL_X, SERIAL_Y, SERIAL_WIDTH, 10, boldFont);
     drawText(page, quoteDocumentTitle(quote), { x: DOCUMENT_TITLE_X, y: DOCUMENT_TITLE_Y, size: DOCUMENT_TITLE_SIZE, font: boldFont });
 
@@ -930,7 +926,7 @@ function saveQuoteToHistory(quote) {
     serial: quote.serial,
     documentType: quote.documentType || "allCost",
     date: quote.date,
-    clientName: quote.clientName,
+    clientName: uppercaseClientName(quote.clientName),
     commercialConditions: quote.commercialConditions || "",
     total: quote.total,
     items: quote.items,
@@ -956,7 +952,7 @@ function renderHistory() {
         <strong>${escapeHtml(quoteDocumentTitle(quote))} N° ${formatQuoteSerial(quote.serial)}</strong>
         <span>${formatCurrency(quote.total)}</span>
       </div>
-      <div>${escapeHtml(quote.clientName)} - ${formatDisplayDate(quote.date)}</div>
+      <div>${escapeHtml(uppercaseClientName(quote.clientName))} - ${formatDisplayDate(quote.date)}</div>
       <div class="history-actions">
         <button class="small-button" type="button" data-open-history="${quote.id}">Ver PDF</button>
         <button class="small-button" type="button" data-edit-history="${quote.id}">Editar</button>
@@ -1037,7 +1033,7 @@ function collectTicket() {
     id: state.editingTicketId || crypto.randomUUID(),
     createdAt: state.editingTicketCreatedAt || new Date().toISOString(),
     date: ticketDate.value,
-    clientName: ticketClientName.value.trim(),
+    clientName: uppercaseClientName(ticketClientName.value.trim()),
     movementType: isExpense ? "expense" : "income",
     type: isExpense ? "expense" : ticketType.value,
     serviceDescription: ticketServiceDescription.value.trim(),
@@ -1051,7 +1047,7 @@ function collectTicket() {
 function loadTicketIntoForm(ticket) {
   ticketMovementType.value = ticket.movementType === "expense" || ticket.type === "expense" ? "expense" : "income";
   ticketDate.value = ticket.date;
-  ticketClientName.value = ticket.clientName || "";
+  ticketClientName.value = uppercaseClientName(ticket.clientName);
   ticketType.value = ticket.type === "full" ? "full" : "advance";
   ticketServiceDescription.value = ticket.serviceDescription || "";
   ticketDetails.value = ticket.details || "";
@@ -1529,11 +1525,17 @@ itemsList.addEventListener("click", (event) => {
 
 quoteDate.addEventListener("input", validateForm);
 quoteDocumentType.addEventListener("change", validateForm);
-clientName.addEventListener("input", validateForm);
+clientName.addEventListener("input", () => {
+  clientName.value = uppercaseClientName(clientName.value);
+  validateForm();
+});
 
 ticketDate.addEventListener("input", validateTicketForm);
 ticketMovementType.addEventListener("change", validateTicketForm);
-ticketClientName.addEventListener("input", validateTicketForm);
+ticketClientName.addEventListener("input", () => {
+  ticketClientName.value = uppercaseClientName(ticketClientName.value);
+  validateTicketForm();
+});
 ticketType.addEventListener("change", validateTicketForm);
 ticketServiceDescription.addEventListener("input", validateTicketForm);
 ticketDetails.addEventListener("input", validateTicketForm);
