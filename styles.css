@@ -249,7 +249,7 @@ textarea {
 
 .history-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 
@@ -445,6 +445,13 @@ dialog::backdrop {
   font-size: 20px;
   font-weight: 700;
   line-height: 1.35;
+}
+
+#deleteConfirmationMessage {
+  margin: 0 0 30px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .dialog-actions {

@@ -12,7 +12,7 @@ const PDF_PAGE_WIDTH = 595.5;
 const PDF_PAGE_HEIGHT = 842.25;
 const TABLE_LEFT = 26;
 const TABLE_RIGHT = 570;
-const TABLE_HEADER_BOTTOM = 470;
+const TABLE_HEADER_BOTTOM = 466;
 const TABLE_BODY_BOTTOM = 270;
 const TABLE_BASE_BODY_HEIGHT = 192;
 const TOTAL_ROW_BOTTOM = 215;
@@ -720,12 +720,10 @@ async function renderQuotePreview(quote, options = {}) {
     context.drawImage(template, 0, 0, template.naturalWidth, template.naturalHeight);
     drawPreviewTableStructure(context, pageLayout);
 
-    if (pageIndex === 0) {
-      drawPreviewText(context, formatDisplayDate(quote.date), layout.date.x, layout.date.y, layout.date.size);
-      drawPreviewText(context, quote.clientName, layout.client.x, layout.client.y, layout.client.size, true);
-      drawPreviewRight(context, quoteSerialLabel(quote), SERIAL_X, SERIAL_Y, SERIAL_WIDTH, 10, true);
-      drawPreviewText(context, quoteDocumentTitle(quote), DOCUMENT_TITLE_X, DOCUMENT_TITLE_Y, DOCUMENT_TITLE_SIZE, true);
-    }
+    drawPreviewText(context, formatDisplayDate(quote.date), layout.date.x, layout.date.y, layout.date.size);
+    drawPreviewText(context, quote.clientName, layout.client.x, layout.client.y, layout.client.size, true);
+    drawPreviewRight(context, quoteSerialLabel(quote), SERIAL_X, SERIAL_Y, SERIAL_WIDTH, 10, true);
+    drawPreviewText(context, quoteDocumentTitle(quote), DOCUMENT_TITLE_X, DOCUMENT_TITLE_Y, DOCUMENT_TITLE_SIZE, true);
 
     for (const row of pageLayout.rows) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
@@ -865,12 +863,10 @@ async function generatePdf(quote) {
     const page = pdfDoc.addPage([PDF_PAGE_WIDTH, PDF_PAGE_HEIGHT]);
     page.drawPage(templatePage, { x: 0, y: 0, width: PDF_PAGE_WIDTH, height: PDF_PAGE_HEIGHT });
     drawPdfTableStructure(page, pageLayout, boldFont);
-    if (pageIndex === 0) {
-      drawText(page, formatDisplayDate(quote.date), { ...layout.date, font: regularFont });
-      drawText(page, quote.clientName, { ...layout.client, font: boldFont });
-      drawRight(page, quoteSerialLabel(quote), SERIAL_X, SERIAL_Y, SERIAL_WIDTH, 10, boldFont);
-      drawText(page, quoteDocumentTitle(quote), { x: DOCUMENT_TITLE_X, y: DOCUMENT_TITLE_Y, size: DOCUMENT_TITLE_SIZE, font: boldFont });
-    }
+    drawText(page, formatDisplayDate(quote.date), { ...layout.date, font: regularFont });
+    drawText(page, quote.clientName, { ...layout.client, font: boldFont });
+    drawRight(page, quoteSerialLabel(quote), SERIAL_X, SERIAL_Y, SERIAL_WIDTH, 10, boldFont);
+    drawText(page, quoteDocumentTitle(quote), { x: DOCUMENT_TITLE_X, y: DOCUMENT_TITLE_Y, size: DOCUMENT_TITLE_SIZE, font: boldFont });
 
     for (const row of pageLayout.rows) {
       const { item, itemIndex, lines, fontSize, lineHeight, rowY } = row;
@@ -963,6 +959,7 @@ function renderHistory() {
       <div>${escapeHtml(quote.clientName)} - ${formatDisplayDate(quote.date)}</div>
       <div class="history-actions">
         <button class="small-button" type="button" data-open-history="${quote.id}">Ver PDF</button>
+        <button class="small-button" type="button" data-edit-history="${quote.id}">Editar</button>
         <button class="small-button" type="button" data-delete-history="${quote.id}">Borrar</button>
       </div>
     `;
@@ -983,6 +980,13 @@ async function openHistoryQuote(id) {
   const bytes = await generatePdf(quote);
   setPdfPreview(bytes, quote);
   showView("preview");
+}
+
+function editHistoryQuote(id) {
+  const quote = readHistory().find((entry) => entry.id === id);
+  if (!quote) return;
+  loadQuoteIntoForm(quote);
+  showView("form");
 }
 
 function ticketFileName(ticket) {
@@ -1195,6 +1199,7 @@ function renderTicketHistory() {
       <div>${formatDisplayDate(ticket.date)} - ${ticketMovementLabel(ticket)} - ${ticketTypeLabel(ticket)}</div>
       <div class="history-actions">
         <button class="small-button" type="button" data-open-ticket="${ticket.id}">Ver ticket</button>
+        <button class="small-button" type="button" data-edit-ticket="${ticket.id}">Editar</button>
         <button class="small-button" type="button" data-delete-ticket="${ticket.id}">Borrar</button>
       </div>
     `;
@@ -1288,6 +1293,13 @@ async function openTicketFromHistory(id) {
   loadTicketIntoForm(ticket);
   await renderTicketPreview(ticket);
   showView("ticketPreview");
+}
+
+function editTicketFromHistory(id) {
+  const ticket = readTicketHistory().find((entry) => entry.id === id);
+  if (!ticket) return;
+  loadTicketIntoForm(ticket);
+  showView("ticketForm");
 }
 
 function showCompletionDialog(documentType, action, editView) {
@@ -1577,6 +1589,12 @@ ticketHistoryList.addEventListener("click", (event) => {
     return;
   }
 
+  const editId = event.target.dataset.editTicket;
+  if (editId) {
+    editTicketFromHistory(editId);
+    return;
+  }
+
   const deleteId = event.target.dataset.deleteTicket;
   if (deleteId) requestDeletion("ticket", deleteId);
 });
@@ -1637,6 +1655,12 @@ historyList.addEventListener("click", (event) => {
   const openId = event.target.dataset.openHistory;
   if (openId) {
     openHistoryQuote(openId);
+    return;
+  }
+
+  const editId = event.target.dataset.editHistory;
+  if (editId) {
+    editHistoryQuote(editId);
     return;
   }
 
