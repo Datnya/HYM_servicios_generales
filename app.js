@@ -838,11 +838,12 @@ function drawPdfTableStructure(page, pageLayout, boldFont) {
 
 async function generatePdf(quote) {
   const layout = readQuoteLayout();
-  const templateBytes = await fetch(TEMPLATE_URL).then((response) => response.arrayBuffer());
-  const templateDoc = await PDFLib.PDFDocument.load(templateBytes);
+  // Use the same page artwork as the preview so both coordinate systems stay identical.
+  const templateBytes = await fetch(PREVIEW_TEMPLATE_URL).then((response) => response.arrayBuffer());
   const pdfDoc = await PDFLib.PDFDocument.create();
   const regularFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+  const templatePage = await pdfDoc.embedPng(templateBytes);
 
   const conditionLines = quote.commercialConditions
     ? wrapTextPreservingBreaks(quote.commercialConditions, regularFont, layout.conditions.size, 500)
@@ -854,10 +855,9 @@ async function generatePdf(quote) {
     { fontSize: layout.description.size, conditionSize: layout.conditions.size }
   );
 
-  const templatePage = await pdfDoc.embedPage(templateDoc.getPage(0));
   for (const [pageIndex, pageLayout] of pageLayouts.entries()) {
     const page = pdfDoc.addPage([PDF_PAGE_WIDTH, PDF_PAGE_HEIGHT]);
-    page.drawPage(templatePage, { x: 0, y: 0, width: PDF_PAGE_WIDTH, height: PDF_PAGE_HEIGHT });
+    page.drawImage(templatePage, { x: 0, y: 0, width: PDF_PAGE_WIDTH, height: PDF_PAGE_HEIGHT });
     drawPdfTableStructure(page, pageLayout, boldFont);
     drawText(page, formatDisplayDate(quote.date), { ...layout.date, font: regularFont });
     drawText(page, uppercaseClientName(quote.clientName), { ...layout.client, font: boldFont });

@@ -381,9 +381,9 @@ textarea {
 
 .pdf-preview-scroll {
   width: 100%;
-  min-height: calc(100vh - 132px);
-  border: 2px solid var(--black);
-  background: var(--white);
+  min-height: 0;
+  border: 0;
+  background: transparent;
   overflow: auto;
 }
 
